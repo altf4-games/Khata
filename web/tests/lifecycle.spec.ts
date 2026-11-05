@@ -42,14 +42,27 @@ test("full lifecycle through the four role views on the real chain", async ({ pa
   const noteName = (await fresh.locator("h3").textContent())!.trim();
   expect(noteName).toMatch(/^Khata note 0x/);
 
-  // ---- attester: issue a credential to investor A ----
+  // the supplier publishes the listing on Arkiv
+  await fresh.getByRole("button", { name: "List on the marketplace" }).click();
+  await expect(page.getByText("Listed on Arkiv").first()).toBeVisible({ timeout: 120_000 });
+
+  // ---- attester: sign a credential for investor A and publish it on Arkiv ----
   await page.getByRole("tab", { name: /Attester/ }).click();
   await page.getByLabel("Valid for").fill("30");
-  await page.getByRole("button", { name: "Sign and register" }).first().click();
-  await expect(page.getByText("Credential issued and registered")).toBeVisible({ timeout: 90_000 });
+  await page.getByRole("button", { name: "Sign and publish to Arkiv" }).click();
+  await expect(page.getByText("Credential published on Arkiv")).toBeVisible({ timeout: 120_000 });
 
   // ---- investor: wait for the cool-off, fund with one signature, see a readable block ----
   await page.getByRole("tab", { name: /Investor/ }).click();
+  // the investor finds the credential on Arkiv and registers it on Whitechain, paying their own fee
+  const activate = page.getByRole("button", { name: "Activate on Whitechain" });
+  await expect(activate).toBeVisible({ timeout: 120_000 });
+  await activate.click();
+  await expect(page.getByText("Credential activated")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText("Active on Whitechain")).toBeVisible({ timeout: 60_000 });
+  // the listing shows in the marketplace, read from Arkiv and confirmed against the factory
+  await expect(page.locator("#h-market")).toBeVisible();
+  await expect(page.getByText("Listed on Arkiv").first()).toBeVisible({ timeout: 60_000 });
   const card = page.locator(".note", { hasText: noteName }).first();
   await expect(card.getByText("Open for funding")).toBeVisible({ timeout: 150_000 });
   await card.getByLabel("Amount of notes").first().fill("0.5");

@@ -11,6 +11,7 @@ import { activeWallet, refresh, rerender, run, setRender, store } from "./store"
 import { attesterDesk, createNotePanel, msgBanner, notesList, nowEst, walletBar } from "./views";
 import { send } from "./tx";
 import { walletsFor, type Role } from "./wallets";
+import { credentialPanel, marketplace } from "./arkivViews";
 import { refusalFor } from "./errors";
 import { classify, formatRupees } from "./verdict";
 import { decodeImageFile, startCamera, type CameraScan } from "./scan";
@@ -434,7 +435,11 @@ function render() {
   } else if (role === "attester") {
     main.append(...[roleIntro(role)].filter((x): x is HTMLElement => !!x), el("div", { class: "wrap" }, walletBar(role)), ...attesterDesk().map((c) => el("div", { class: "wrap" }, c)));
   } else {
-    main.append(...[roleIntro(role)].filter((x): x is HTMLElement => !!x), el("div", { class: "wrap" }, walletBar(role), el("h2", { class: "section" }, "Notes"),
+    const w = activeWallet(role);
+    main.append(...[roleIntro(role)].filter((x): x is HTMLElement => !!x));
+    main.append(el("div", { class: "wrap" }, walletBar(role)));
+    if (role === "investor" && w) main.append(el("div", { class: "wrap two" }, credentialPanel(w), marketplace(role)));
+    main.append(el("div", { class: "wrap" }, el("h2", { class: "section" }, role === "investor" ? "All notes on Whitechain" : "Notes"),
       notesList(role, undefined, "No notes exist yet. Switch to the supplier role to register an invoice and create one.")));
   }
   app.append(main, footer());

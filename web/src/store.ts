@@ -8,6 +8,8 @@ import {
 } from "./notes";
 import { walletsFor, wallets, type DemoWallet, type Role } from "./wallets";
 import type { Sent } from "./tx";
+import { loadArkiv, type ArkivSnapshot } from "./arkivApp";
+import { ArkivUnavailable } from "./arkiv";
 
 export interface Msg {
   kind: "busy" | "ok" | "bad";
@@ -40,6 +42,8 @@ export const store = {
   issued: [] as IssuedCredential[],
   msgs: {} as Record<string, Msg>,
   form: {} as Record<string, string>,
+  arkiv: undefined as ArkivSnapshot | undefined,
+  arkivError: "",
 };
 
 let renderFn: () => void = () => {};
@@ -77,6 +81,7 @@ export async function refresh() {
     let issued = store.issued;
     if (store.role === "attester") issued = await loadIssued();
     if (mine !== seq) return;
+    void refreshArkiv(now);
     Object.assign(store, { notes, chainNow: now, refreshedAt: Date.now(), elig, bal, hold, issued, loadError: "", loaded: true });
   } catch (e) {
     if (mine !== seq) return;
@@ -110,3 +115,21 @@ export async function run(key: string, busy: string, fn: () => Promise<Sent | un
   }
   await refresh();
 }
+
+/** Arkiv is read separately, so an Arkiv outage never hides what the chain says. */
+let aseq = 0;
+export async function refreshArkiv(now = nowEst2()) {
+  const mine = ++aseq;
+  try {
+    const disc = Math.round(Number(store.form["m:disc"] ?? "0") * 100);
+    const snap = await loadArkiv(now, { minDiscountBps: Number.isFinite(disc) ? disc : 0, status: store.form["m:status"] ?? "open" });
+    if (mine !== aseq) return;
+    store.arkiv = snap;
+    store.arkivError = "";
+  } catch (e) {
+    if (mine !== aseq) return;
+    store.arkivError = e instanceof ArkivUnavailable ? e.why : "Arkiv could not be read.";
+  }
+  rerender();
+}
+const nowEst2 = () => store.chainNow + Math.floor((Date.now() - store.refreshedAt) / 1000);

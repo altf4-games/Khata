@@ -5,10 +5,14 @@ import {
   usdtAbi, usdtAddress, usdtPermitDomain, abi as registryAbi, registryAddress,
 } from "./chain";
 import { el, put, short, type Child } from "./ui";
-import { activeWallet, holdKey, refresh, rerender, run, store, type Msg } from "./store";
+import { activeWallet, holdKey, refresh, refreshArkiv, rerender, run, store, type Msg } from "./store";
 import { explainTransfer, nowChain, parseUsdt, quote, span, usdt, when, type NoteInfo } from "./notes";
 import { nameOf, walletsFor, type DemoWallet, type Role } from "./wallets";
 import { send } from "./tx";
+import { closeListing, listingControl } from "./arkivViews";
+import { arkivWalletFor } from "./arkivApp";
+import { ELIGIBILITY_TYPES, REVOCATION_TYPES, SELLER_BINDING_TYPES } from "./eip712";
+import { publishCredential, publishRevocation } from "./arkiv";
 
 // ---------- shared bits ----------
 export function msgBanner(key: string): Child {
@@ -19,7 +23,7 @@ export function msgBanner(key: string): Child {
   return el("div", { class: `banner ${m.kind}`, role: m.kind === "bad" ? "alert" : "status" }, el("span", { class: "ic" }, m.kind === "ok" ? "✓" : "✕"),
     el("div", {}, el("strong", {}, m.title), m.detail || link.length ? el("p", {}, m.detail ?? "", ...link) : null));
 }
-const busy = (key: string) => store.msgs[key]?.kind === "busy";
+export const busy = (key: string) => store.msgs[key]?.kind === "busy";
 
 export function field(label: string, key: string, def: string, opts: { type?: string; hint?: string; options?: [string, string][] } = {}): HTMLElement {
   const id = `f-${key}`;
@@ -120,7 +124,12 @@ export function noteCard(n: NoteInfo, role: Role): HTMLElement {
     acts.append(el("button", { class: "btn", disabled: busy(key), onclick: () => run(key, "Redeeming…", () => send(w, n.address, noteAbi, "redeem", []), "Redeemed") }, `Redeem ${usdt(mine)} USDT`));
   }
   if (role === "supplier" && n.phase === "Funding" && !n.fundingClosed && n.seller.toLowerCase() === w.address.toLowerCase()) {
-    acts.append(el("button", { class: "btn", disabled: busy(key), onclick: () => run(key, "Closing funding…", () => send(w, n.address, noteAbi, "closeFunding", []), "Funding closed. Unsold notes were burned; you keep that share when the debtor pays.") }, "Close funding now"));
+    acts.append(el("button", { class: "btn", disabled: busy(key), onclick: () => run(key, "Closing funding…", async () => {
+      const sent = await send(w, n.address, noteAbi, "closeFunding", []);
+      try { await closeListing(n, w); } catch { /* the listing is only discovery; the chain already closed funding */ }
+      return sent;
+    }, "Funding closed. Unsold notes were burned; you keep that share when the debtor pays.") }, "Close funding now"));
+    put(acts, listingControl(n, w));
   }
   if (n.phase === "Funding" && now > n.dueDate + n.graceSeconds) {
     acts.append(el("button", { class: "btn ghost", disabled: busy(key), onclick: () => run(key, "Marking default…", () => send(w, n.address, noteAbi, "markDefault", []), "Marked as defaulted") }, "Mark as defaulted"));
@@ -298,32 +307,45 @@ export function attesterDesk(): HTMLElement[] {
   if (!w) return [];
   const investors = [...walletsFor("investor"), ...walletsFor("debtor"), ...walletsFor("supplier")];
   const issueKey = "att:issue";
+  const issueNow = (mode: "arkiv" | "direct") => {
+    const subject = val("a:subject", investors[0]?.address ?? "") as Address;
+    const secs = Math.round(Number(val("a:len", "5")) * Number(val("a:unit", "60")));
+    const tier = Number(val("a:tier", "2"));
+    if (!Number.isFinite(secs) || secs <= 0 || !Number.isFinite(tier)) { store.msgs[issueKey] = { kind: "bad", title: "Check the values", detail: "Use a positive validity and a tier number." }; return rerender(); }
+    const signIt = async () => {
+      const credId = keccak256(toHex(`${subject}:${Date.now()}`));
+      const validUntil = (await nowChain()) + secs; // the chain's clock, not this page's estimate
+      const message = { subject, tier, jurisdiction: 356, validUntil: BigInt(validUntil), credId };
+      const signature = await sign(w, ELIGIBILITY_TYPES, "Eligibility", message);
+      return { credId, validUntil, message, signature };
+    };
+    if (mode === "direct") {
+      void run(issueKey, "Signing and registering on Whitechain…", async () => {
+        const s = await signIt();
+        return send(w, attestersAddress, attestersAbi, "register", [s.message, s.signature]);
+      }, "Credential registered directly on Whitechain", "This skipped Arkiv, so nobody else can discover it.");
+      return;
+    }
+    void run(issueKey, "Signing and publishing to Arkiv…", async () => {
+      const s = await signIt();
+      const r = await publishCredential(arkivWalletFor(w), { subject, attester: w.address, tier, jurisdiction: 356, validUntil: s.validUntil, credId: s.credId, signature: s.signature });
+      void refreshArkiv();
+      return { hash: r.txHash as `0x${string}`, gasUsed: 0n };
+    }, "Credential published on Arkiv", "The investor finds it there and activates it on Whitechain, paying their own fee. Nothing is enforced until then.");
+  };
   const issue = el("section", { class: "card", "aria-labelledby": "h-issue" }, el("span", { class: "kicker" }, "Credentials"), el("h2", { id: "h-issue" }, "Issue an investor credential"),
-    el("p", { class: "muted" }, "You sign an expiring credential for a wallet. The note contract checks your signature, the expiry and revocation itself. Arkiv will be the place others discover it (not built yet)."),
+    el("p", { class: "muted" }, "You sign an expiring credential for a wallet and publish it on Arkiv, owned by your wallet. The investor finds it there and registers it on Whitechain. The note contract checks your signature, the expiry and revocation itself."),
     el("div", { class: "grid2" },
       field("Wallet", "a:subject", investors[0]?.address ?? "", { options: investors.map((x): [string, string] => [x.address, x.label]) }),
       field("Tier", "a:tier", "2", { type: "number" }),
       field("Valid for", "a:len", "5", { type: "number" }),
       field("Unit", "a:unit", "60", { options: [["60", "minutes"], ["3600", "hours"], ["86400", "days"]] }),
     ),
-    el("div", { class: "row" }, el("button", {
-      class: "btn primary grow", disabled: busy(issueKey),
-      onclick: () => {
-        const subject = val("a:subject", investors[0]?.address ?? "") as Address;
-        const secs = Math.round(Number(val("a:len", "5")) * Number(val("a:unit", "60")));
-        const tier = Number(val("a:tier", "2"));
-        if (!Number.isFinite(secs) || secs <= 0 || !Number.isFinite(tier)) { store.msgs[issueKey] = { kind: "bad", title: "Check the values", detail: "Use a positive validity and a tier number." }; return rerender(); }
-        void run(issueKey, "Signing and registering…", async () => {
-          const credId = keccak256(toHex(`${subject}:${Date.now()}`));
-          const message = { subject, tier, jurisdiction: 356, validUntil: BigInt((await nowChain()) + secs), credId };
-          const types = { Eligibility: [{ name: "subject", type: "address" }, { name: "tier", type: "uint8" }, { name: "jurisdiction", type: "uint16" }, { name: "validUntil", type: "uint64" }, { name: "credId", type: "bytes32" }] };
-          const sig = await sign(w, types, "Eligibility", message);
-          return send(w, attestersAddress, attestersAbi, "register", [message, sig]);
-        }, "Credential issued and registered", "The wallet can now receive notes until the credential expires.");
-      },
-    }, "Sign and register")),
-    msgBanner(issueKey),
+    el("div", { class: "row" },
+      el("button", { class: "btn primary grow", disabled: busy(issueKey), onclick: () => issueNow("arkiv") }, "Sign and publish to Arkiv"),
+      el("button", { class: "btn ghost grow", disabled: busy(issueKey), onclick: () => issueNow("direct") }, "Register directly on Whitechain (skip Arkiv)")),
   );
+  put(issue, msgBanner(issueKey));
 
   const list = el("section", { class: "card", "aria-labelledby": "h-cred" }, el("span", { class: "kicker" }, "Ledger"), el("h2", { id: "h-cred" }, "Credentials issued"));
   if (!store.issued.length) list.append(el("p", { class: "muted" }, "No credentials found yet."));
@@ -337,10 +359,17 @@ export function attesterDesk(): HTMLElement[] {
       el("p", { class: "foot" }, `Expires ${when(c.validUntil)} · `, el("a", { href: txUrl(c.tx), target: "_blank", rel: "noopener" }, "registered here")),
       e && e.reason === "Eligible" && e.credId === c.credId ? el("button", {
         class: "btn", disabled: busy(rk),
-        onclick: () => void run(rk, "Revoking…", async () => {
-          const sig = await sign(w, { Revocation: [{ name: "credId", type: "bytes32" }] }, "Revocation", { credId: c.credId });
-          return send(w, attestersAddress, attestersAbi, "revoke", [{ credId: c.credId }, sig]);
-        }, "Credential revoked", "The wallet can no longer receive notes. It can still redeem what it holds."),
+        onclick: () => void run(rk, "Signing the revocation, publishing it on Arkiv and applying it…", async () => {
+          const sig = await sign(w, REVOCATION_TYPES, "Revocation", { credId: c.credId });
+          let note = "";
+          try {
+            await publishRevocation(arkivWalletFor(w), { attester: w.address, credId: c.credId, signature: sig }, c.validUntil);
+            void refreshArkiv();
+          } catch { note = " Arkiv could not be reached, so only Whitechain was updated."; }
+          const sent = await send(w, attestersAddress, attestersAbi, "revoke", [{ credId: c.credId }, sig]);
+          store.msgs[rk] = { kind: "ok", title: "Credential revoked", detail: "Published on Arkiv and applied on Whitechain. The wallet can no longer receive notes, but can still redeem what it holds." + note, hash: sent.hash };
+          return undefined;
+        }, "Credential revoked"),
       }, "Revoke") : null,
       msgBanner(rk)));
   }
@@ -360,8 +389,7 @@ export function attesterDesk(): HTMLElement[] {
         const gstinHash = keccak256(toHex(gstin));
         const cur = (await publicClient.readContract({ address: registryAddress, abi: registryAbi, functionName: "sellers", args: [gstinHash] })) as readonly [Address, bigint, bigint];
         const message = { gstinHash, wallet: val("s:wallet", sellers[0]?.address ?? "") as Address, validUntil: BigInt((await nowChain()) + 7 * 86400), version: cur[2] + 1n };
-        const types = { SellerBinding: [{ name: "gstinHash", type: "bytes32" }, { name: "wallet", type: "address" }, { name: "validUntil", type: "uint64" }, { name: "version", type: "uint64" }] };
-        const sig = await sign(w, types, "SellerBinding", message);
+        const sig = await sign(w, SELLER_BINDING_TYPES, "SellerBinding", message);
         return send(w, registryAddress, registryAbi, "registerSeller", [message, sig]);
       }, "Seller wallet authorised", "Valid for 7 days. A newer binding replaces an older one."),
     }, "Sign and register")),

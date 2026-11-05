@@ -14,9 +14,12 @@
     "web:preview": "vite preview --config web/vite.config.ts",
     "live:stage2": "node scripts/live-stage2.mjs",
     "test:web": "playwright test layout verdict",
+    "second-issuer": "tsx scripts/second-issuer.ts",
+    "test:arkiv": "playwright test arkiv",
     "test:web:live": "playwright test lifecycle"
   },
   "dependencies": {
+    "@arkiv-network/sdk": "1.0.1",
     "@fontsource-variable/source-serif-4": "5.3.1",
     "@fontsource/kalam": "5.3.0",
     "jsqr": "1.4.0",
@@ -24,6 +27,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
+    "tsx": "4.20.6",
     "typescript": "7.0.2",
     "vite": "8.3.6"
   }

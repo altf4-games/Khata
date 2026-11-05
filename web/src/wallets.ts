@@ -1,7 +1,7 @@
 // Labelled demo wallets. Their keys come from the ignored root .env at dev time (DEMO_*_KEY) and are never committed.
 // With no keys present the app is read-only: it still verifies and shows notes, but cannot send transactions.
 import { createWalletClient, http, type Address, type Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { whitechainSepolia } from "./chain";
 
 export type Role = "supplier" | "investor" | "debtor" | "attester";
@@ -11,6 +11,7 @@ export interface DemoWallet {
   label: string;
   role: Role;
   address: Address;
+  account: PrivateKeyAccount;
   client: ReturnType<typeof createWalletClient>;
 }
 
@@ -26,7 +27,7 @@ const SPEC: { id: string; label: string; role: Role; key: string | undefined }[]
 export const wallets: DemoWallet[] = SPEC.filter((s) => s.key && /^0x[0-9a-fA-F]{64}$/.test(s.key)).map((s) => {
   const account = privateKeyToAccount(s.key as Hex);
   return {
-    id: s.id, label: s.label, role: s.role, address: account.address,
+    id: s.id, label: s.label, role: s.role, address: account.address, account,
     client: createWalletClient({ account, chain: whitechainSepolia, transport: http() }),
   };
 });
