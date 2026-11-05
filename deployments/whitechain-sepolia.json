@@ -11,5 +11,19 @@
     "0x321Ac7c6C2Ea6A0c3645420441D152D7280747F5",
     "0x082D24fD4F60954b82F420925A5Cc8349F7Afa6d",
     "0x642722347572944654960B8CE256d7287BDcF783"
-  ]
+  ],
+  "stage2": {
+    "usdt": "0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7",
+    "coolOffSeconds": 60,
+    "microUsdtPerPaise": 1,
+    "note": "Live demo uses a 60 s cool-off so the lifecycle can be shown in minutes. Unit tests cover 24 h.",
+    "AttesterRegistry": "0x43a2721542627b57fDa50596fd60725F498A08bA",
+    "deployTxs": {
+      "AttesterRegistry": "0xa56d994c19f599ed566eff2983fb19d060b5f80ec8cd81c6c37be98959d33b52",
+      "KhataRegistry": "0xf6cae5beceb7b4cc3cc4d08922c0dbe59b95b14aab7a0f240b323642195543aa",
+      "KhataFactory": "0x2068dc0fcb7638d922dc22f4ca98b9abbae02cfc87e49cc9e311779ce4d1ef86"
+    },
+    "KhataRegistry": "0x5D81284bDD6f691e45e7Aa35A83900B2B05177e8",
+    "KhataFactory": "0x73c026Fff2515AC3319EaC1400707750cff1E22a"
+  }
 }

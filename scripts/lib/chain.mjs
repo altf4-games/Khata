@@ -53,3 +53,16 @@ export function revertName(err) {
   }
   return undefined;
 }
+
+/** Foundry build output ABI for a contract, e.g. abiOf("KhataNote"). Run `forge build` first. */
+export function abiOf(name) {
+  return JSON.parse(readFileSync(join(root, `out/${name}.sol/${name}.json`), "utf8")).abi;
+}
+
+export function wallet(role) {
+  const key = loadEnv()[`DEMO_${role}_KEY`];
+  if (!key) throw new Error(`DEMO_${role}_KEY missing in .env`);
+  const account = privateKeyToAccount(key);
+  const transport = http(loadEnv().WHITECHAIN_RPC_URL || whitechainSepolia.rpcUrls.default.http[0]);
+  return { account, client: createWalletClient({ account, chain: whitechainSepolia, transport }) };
+}
