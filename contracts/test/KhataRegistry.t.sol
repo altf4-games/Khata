@@ -7,17 +7,25 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {KhataRegistry} from "../src/KhataRegistry.sol";
 import {NicInvoice} from "../src/NicInvoice.sol";
 import {NicJwt} from "../src/NicJwt.sol";
+import {AttesterRegistry} from "../src/AttesterRegistry.sol";
 
 contract KhataRegistryTest is Test {
     KhataRegistry internal reg;
+    AttesterRegistry internal att;
 
     address internal owner = makeAddr("owner");
-    address internal seller = makeAddr("seller");
+    /// The test contract is the registered seller wallet, so plain calls below are the seller's own.
+    address internal seller = address(this);
     address internal rival = makeAddr("rival");
 
     string internal constant NIC_KID = "4DE1544AE695BDC84EC7BC12F2F57F813F44E301";
     string internal constant DEMO_KID = "DEMO-IRP-NOT-GOVERNMENT-1";
     bytes internal constant E = hex"010001";
+    uint256 internal constant ATTESTER_PK = 0xA11CE;
+    uint64 internal constant COOL_OFF = 1 days;
+    bytes32 internal constant NIC_SELLER = keccak256("37ARZPT4384Q1MT");
+    bytes32 internal constant DEMO_SELLER = keccak256("27DEMOS1234A1Z5");
+    uint64 internal bindingVersion;
 
     bytes internal nicModulus;
     bytes internal demoModulus;
@@ -31,10 +39,32 @@ contract KhataRegistryTest is Test {
     );
 
     function setUp() public {
-        reg = new KhataRegistry(owner);
+        vm.warp(1_800_000_000);
+        att = new AttesterRegistry(owner);
+        vm.prank(owner);
+        att.addAttester(vm.addr(ATTESTER_PK));
+        reg = new KhataRegistry(owner, att, COOL_OFF);
+        _registerSeller(NIC_SELLER, seller);
+        _registerSeller(DEMO_SELLER, seller);
         nicModulus = vm.parseBytes(vm.readFile("contracts/test/fixtures/nic-sample.modulus.hex"));
         demoModulus = vm.parseBytes(vm.readFile("contracts/test/fixtures/demo-irp/demo-irp.modulus.hex"));
         sample = vm.readFile("contracts/test/fixtures/nic-sample.token");
+    }
+
+    function _signedBinding(bytes32 gh, address wallet, uint64 until, uint64 version)
+        internal
+        view
+        returns (AttesterRegistry.SellerBinding memory b, bytes memory sig)
+    {
+        b = AttesterRegistry.SellerBinding({gstinHash: gh, wallet: wallet, validUntil: until, version: version});
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTER_PK, att.sellerBindingDigest(b));
+        sig = abi.encodePacked(r, s, v);
+    }
+
+    function _registerSeller(bytes32 gh, address wallet) internal {
+        (AttesterRegistry.SellerBinding memory b, bytes memory sig) =
+            _signedBinding(gh, wallet, uint64(block.timestamp + 365 days), ++bindingVersion);
+        reg.registerSeller(b, sig);
     }
 
     function _demo(string memory name) internal view returns (string memory) {
@@ -149,7 +179,7 @@ contract KhataRegistryTest is Test {
 
         assertEq(got, nul);
         assertTrue(reg.isBound(nul));
-        (address binder, uint64 at, uint128 value, bytes32 irn) = reg.bindings(nul);
+        (address binder, uint64 at, uint128 value, bytes32 irn,,) = reg.bindings(nul);
         assertEq(binder, seller);
         assertEq(at, uint64(block.timestamp));
         assertEq(value, 200);
@@ -163,7 +193,6 @@ contract KhataRegistryTest is Test {
         reg.bindInvoice(sample);
 
         bytes32 nul = NicInvoice.nullifierOf(SAMPLE_IRN);
-        vm.prank(rival);
         vm.expectRevert(abi.encodeWithSelector(KhataRegistry.IrnAlreadyFinanced.selector, nul));
         reg.bindInvoice(sample);
     }
@@ -178,7 +207,6 @@ contract KhataRegistryTest is Test {
         _addDemo();
         vm.prank(seller);
         bytes32 nul = reg.bindInvoice(_demo("demo-01"));
-        vm.prank(rival);
         vm.expectRevert(abi.encodeWithSelector(KhataRegistry.IrnAlreadyFinanced.selector, nul));
         reg.bindInvoice(_demo("demo-dup-irn"));
     }
@@ -327,14 +355,13 @@ contract KhataRegistryTest is Test {
         _addNic();
         _addDemo();
         string memory forged = vm.readFile("contracts/test/fixtures/redteam/collide-nic-irn.token");
-        vm.prank(rival);
         bytes32 demoNul = reg.bindInvoice(forged);
         assertTrue(demoNul != NicInvoice.nullifierOf(SAMPLE_IRN), "demo namespace differs");
 
         vm.prank(seller);
         bytes32 realNul = reg.bindInvoice(sample); // the genuine NIC token still binds
         assertEq(realNul, NicInvoice.nullifierOf(SAMPLE_IRN));
-        (address binder,,,) = reg.bindings(realNul);
+        (address binder,,,,,) = reg.bindings(realNul);
         assertEq(binder, seller);
     }
 
@@ -372,4 +399,102 @@ contract KhataRegistryTest is Test {
         reg.acceptOwnership();
         assertEq(reg.owner(), next);
     }
+
+    // ---------- seller wallets: QR squatting ----------
+
+    /// Whoever holds a copy of the QR must not be able to register it first.
+    function test_aQrHolderWhoIsNotTheSellerWalletCannotBind() public {
+        _addNic();
+        vm.prank(rival);
+        vm.expectRevert(abi.encodeWithSelector(KhataRegistry.NotSellerWallet.selector, seller));
+        reg.bindInvoice(sample);
+        assertFalse(reg.isBound(NicInvoice.nullifierOf(SAMPLE_IRN)));
+
+        reg.bindInvoice(sample); // the real seller still can
+        assertTrue(reg.isBound(NicInvoice.nullifierOf(SAMPLE_IRN)));
+    }
+
+    function test_unregisteredSellerGstinCannotBind() public {
+        KhataRegistry fresh = new KhataRegistry(owner, att, COOL_OFF);
+        vm.prank(owner);
+        fresh.addKey(NIC_KID, nicModulus, E, false);
+        vm.expectRevert(abi.encodeWithSelector(KhataRegistry.SellerNotRegistered.selector, NIC_SELLER));
+        fresh.bindInvoice(sample);
+    }
+
+    function test_sellerRegistrationNeedsAnAcceptedAttester() public {
+        uint256 roguePk = 0xBAD;
+        AttesterRegistry.SellerBinding memory b = AttesterRegistry.SellerBinding({
+            gstinHash: keccak256("29NEWSELLER1Z5"),
+            wallet: rival,
+            validUntil: uint64(block.timestamp + 1 days),
+            version: 1
+        });
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(roguePk, att.sellerBindingDigest(b));
+        vm.expectRevert(abi.encodeWithSelector(AttesterRegistry.UnknownAttester.selector, vm.addr(roguePk)));
+        reg.registerSeller(b, abi.encodePacked(r, s, v));
+    }
+
+    function test_sellerBindingCannotBeReplayedOrDowngraded() public {
+        // version 1 and 2 were used in setUp for the two GSTINs; a new GSTIN has its own counter
+        (AttesterRegistry.SellerBinding memory b1, bytes memory sig1) =
+            _signedBinding(NIC_SELLER, rival, uint64(block.timestamp + 365 days), 5);
+        reg.registerSeller(b1, sig1);
+        (address wallet,, uint64 version) = reg.sellers(NIC_SELLER);
+        assertEq(wallet, rival);
+        assertEq(version, 5);
+
+        // an older, still-valid binding for the previous wallet cannot be replayed
+        (AttesterRegistry.SellerBinding memory old, bytes memory oldSig) =
+            _signedBinding(NIC_SELLER, seller, uint64(block.timestamp + 365 days), 4);
+        vm.expectRevert(abi.encodeWithSelector(KhataRegistry.StaleBinding.selector, 5));
+        reg.registerSeller(old, oldSig);
+        // the same version cannot be registered twice either
+        vm.expectRevert(abi.encodeWithSelector(KhataRegistry.StaleBinding.selector, 5));
+        reg.registerSeller(b1, sig1);
+    }
+
+    function test_movingASellerWalletRemovesTheOldWalletsRights() public {
+        _addNic();
+        (AttesterRegistry.SellerBinding memory b, bytes memory sig) =
+            _signedBinding(NIC_SELLER, rival, uint64(block.timestamp + 365 days), 9);
+        reg.registerSeller(b, sig);
+
+        vm.expectRevert(abi.encodeWithSelector(KhataRegistry.NotSellerWallet.selector, rival));
+        reg.bindInvoice(sample); // the old wallet is no longer the seller
+        vm.prank(rival);
+        reg.bindInvoice(sample);
+    }
+
+    function test_expiredSellerBindingCannotBind() public {
+        _addNic();
+        vm.warp(block.timestamp + 366 days);
+        vm.expectRevert(); // key + sample are fine, the seller binding has expired
+        reg.bindInvoice(sample);
+    }
+
+    function test_sellerBindingRejectsZeroWallet() public {
+        (AttesterRegistry.SellerBinding memory b, bytes memory sig) =
+            _signedBinding(NIC_SELLER, address(0), uint64(block.timestamp + 1 days), 77);
+        vm.expectRevert(KhataRegistry.InvalidWallet.selector);
+        reg.registerSeller(b, sig);
+    }
+
+    function test_inspectShowsTheSellerWallet() public {
+        _addNic();
+        assertEq(reg.inspect(sample).sellerWallet, seller);
+    }
+
+    // ---------- cool-off ----------
+
+    /// An IRN can be cancelled within 24 hours and the signature still verifies, so funding waits.
+    function test_fundableAtIsBindTimePlusCoolOff() public {
+        _addNic();
+        bytes32 nul = reg.bindInvoice(sample);
+        (, uint64 at,,, uint64 fundableAt, bytes32 gh) = reg.bindings(nul);
+        assertEq(fundableAt, at + COOL_OFF);
+        assertEq(gh, NIC_SELLER);
+        assertEq(reg.coolOff(), COOL_OFF);
+    }
 }
+

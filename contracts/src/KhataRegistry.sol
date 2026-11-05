@@ -5,11 +5,12 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {NicJwt} from "./NicJwt.sol";
 import {NicInvoice} from "./NicInvoice.sol";
+import {AttesterRegistry} from "./AttesterRegistry.sol";
 
 /// @notice Holds the accepted signing keys by `kid` and binds each e-invoice (by IRN) at most once.
-/// @dev NOT YET IMPLEMENTED here: restricting `bindInvoice` to the seller's wallet. Today anyone
-///      holding a valid token can bind it first, so QR squatting is possible. The duplicate block is
-///      local to this registry; it says nothing about other platforms or banks.
+/// @dev Only the wallet an accepted attester has bound to the invoice's seller GSTIN may bind that
+///      seller's invoices, so holding a copy of the QR is not enough (QR squatting). The duplicate
+///      block is local to this registry; it says nothing about other platforms or banks.
 contract KhataRegistry is Ownable2Step {
     error KeyAlreadyRegistered(string kid);
     error UnknownKey(string kid);
@@ -18,6 +19,11 @@ contract KhataRegistry is Ownable2Step {
     error OwnershipCannotBeRenounced();
     error InvalidSignature();
     error IrnAlreadyFinanced(bytes32 nullifier);
+    error InvalidWallet();
+    error StaleBinding(uint64 currentVersion);
+    error SellerNotRegistered(bytes32 gstinHash);
+    error NotSellerWallet(address expected);
+    error SellerBindingExpired(uint64 validUntil);
 
     uint32 internal constant MIN_EXPONENT = 65537;
     uint256 internal constant MAX_KID_BYTES = 64;
@@ -35,6 +41,14 @@ contract KhataRegistry is Ownable2Step {
         uint64 boundAt;
         uint128 valuePaise;
         bytes32 irn;
+        uint64 fundableAt; // boundAt + cool-off: an IRN can be cancelled within 24 h and the signature still verifies
+        bytes32 sellerGstinHash;
+    }
+
+    struct Seller {
+        address wallet;
+        uint64 validUntil;
+        uint64 version;
     }
 
     /// What the verification panel shows for a scanned token, without changing any state.
@@ -47,6 +61,7 @@ contract KhataRegistry is Ownable2Step {
         NicInvoice.Invoice invoice;
         bytes32 nullifier;
         bool alreadyBound;
+        address sellerWallet; // the wallet allowed to bind this seller's invoices, zero if none
     }
 
     event KeyAdded(bytes32 indexed kidHash, string kid, bool demo);
@@ -55,10 +70,19 @@ contract KhataRegistry is Ownable2Step {
         bytes32 indexed nullifier, bytes32 indexed irn, bytes32 indexed kidHash, address binder, uint256 valuePaise
     );
 
+    event SellerRegistered(bytes32 indexed gstinHash, address indexed wallet, address indexed attester, uint64 version);
+
+    AttesterRegistry public immutable attesters;
+    uint64 public immutable coolOff;
+
     mapping(bytes32 kidHash => Key) private _keys;
     mapping(bytes32 nullifier => Binding) public bindings;
+    mapping(bytes32 gstinHash => Seller) public sellers;
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor(address initialOwner, AttesterRegistry attesters_, uint64 coolOff_) Ownable(initialOwner) {
+        attesters = attesters_;
+        coolOff = coolOff_;
+    }
 
     /// @dev Renouncing would make a compromised key impossible to retire.
     function renounceOwnership() public view override onlyOwner {
@@ -116,6 +140,19 @@ contract KhataRegistry is Ownable2Step {
         return (k.modulus, k.exponent, k.active, k.demo);
     }
 
+    // ---------- seller wallets ----------
+
+    /// @notice Records an attester-signed binding of a seller GSTIN to a wallet. Anyone may submit it.
+    ///         Versions must increase, so an old binding cannot be replayed to take the GSTIN back.
+    function registerSeller(AttesterRegistry.SellerBinding calldata b, bytes calldata signature) external {
+        if (b.wallet == address(0)) revert InvalidWallet();
+        address attester = attesters.verifySellerBinding(b, signature);
+        Seller storage s = sellers[b.gstinHash];
+        if (b.version <= s.version) revert StaleBinding(s.version);
+        sellers[b.gstinHash] = Seller(b.wallet, b.validUntil, b.version);
+        emit SellerRegistered(b.gstinHash, b.wallet, attester, b.version);
+    }
+
     // ---------- binding ----------
 
     /// @notice Verifies the NIC signature on `token`, parses it and binds its IRN. Reverts if the IRN was bound before.
@@ -128,10 +165,23 @@ contract KhataRegistry is Ownable2Step {
         if (!NicJwt.verifySignature(p, k.exponent, k.modulus)) revert InvalidSignature();
 
         NicInvoice.Invoice memory inv = NicInvoice.parse(p.payload);
+        bytes32 gstinHash = keccak256(bytes(inv.sellerGstin));
+        Seller memory seller = sellers[gstinHash];
+        if (seller.wallet == address(0)) revert SellerNotRegistered(gstinHash);
+        if (msg.sender != seller.wallet) revert NotSellerWallet(seller.wallet);
+        if (seller.validUntil <= block.timestamp) revert SellerBindingExpired(seller.validUntil);
+
         nullifier = k.demo ? NicInvoice.demoNullifierOf(inv.irn) : NicInvoice.nullifierOf(inv.irn);
         if (bindings[nullifier].boundAt != 0) revert IrnAlreadyFinanced(nullifier);
 
-        bindings[nullifier] = Binding(msg.sender, uint64(block.timestamp), uint128(inv.valuePaise), inv.irn);
+        bindings[nullifier] = Binding(
+            msg.sender,
+            uint64(block.timestamp),
+            uint128(inv.valuePaise),
+            inv.irn,
+            uint64(block.timestamp) + coolOff,
+            gstinHash
+        );
         emit InvoiceBound(nullifier, inv.irn, keccak256(bytes(kid)), msg.sender, inv.valuePaise);
     }
 
@@ -154,5 +204,6 @@ contract KhataRegistry is Ownable2Step {
         r.invoice = NicInvoice.parse(p.payload);
         r.nullifier = k.demo ? NicInvoice.demoNullifierOf(r.invoice.irn) : NicInvoice.nullifierOf(r.invoice.irn);
         r.alreadyBound = bindings[r.nullifier].boundAt != 0;
+        r.sellerWallet = sellers[keccak256(bytes(r.invoice.sellerGstin))].wallet;
     }
 }

@@ -7,6 +7,7 @@ import {KhataRegistry} from "../../src/KhataRegistry.sol";
 import {NicInvoice} from "../../src/NicInvoice.sol";
 import {NicJwt} from "../../src/NicJwt.sol";
 import {JsonLite} from "../../src/JsonLite.sol";
+import {AttesterRegistry} from "../../src/AttesterRegistry.sol";
 
 /// Harness so library reverts can be caught and classified.
 contract Harness {
@@ -25,6 +26,8 @@ contract Harness {
 
 contract RedTeamTest is Test {
     KhataRegistry reg;
+    AttesterRegistry att;
+    uint256 constant ATT_PK = 0xA11CE;
     Harness h;
     address owner = makeAddr("owner");
     address a = makeAddr("a");
@@ -38,7 +41,13 @@ contract RedTeamTest is Test {
     bytes32 constant SAMPLE_IRN = 0xd9476807f5496dea9fc65c6a954887db156022ba4b0d17a3687d43576beb8e17;
 
     function setUp() public {
-        reg = new KhataRegistry(owner);
+        vm.warp(1_800_000_000);
+        att = new AttesterRegistry(owner);
+        vm.prank(owner);
+        att.addAttester(vm.addr(ATT_PK));
+        reg = new KhataRegistry(owner, att, 1 days);
+        _seller(keccak256("37ARZPT4384Q1MT"), 1);
+        _seller(keccak256("27DEMOS1234A1Z5"), 2);
         h = new Harness();
         nicN = vm.parseBytes(vm.readFile("contracts/test/fixtures/nic-sample.modulus.hex"));
         demoN = vm.parseBytes(vm.readFile("contracts/test/fixtures/demo-irp/demo-irp.modulus.hex"));
@@ -49,6 +58,14 @@ contract RedTeamTest is Test {
         vm.stopPrank();
     }
 
+    function _seller(bytes32 gh, uint64 version) internal {
+        AttesterRegistry.SellerBinding memory sb = AttesterRegistry.SellerBinding({
+            gstinHash: gh, wallet: a, validUntil: uint64(block.timestamp + 365 days), version: version
+        });
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATT_PK, att.sellerBindingDigest(sb));
+        reg.registerSeller(sb, abi.encodePacked(r, s, v));
+    }
+
     function _rt(string memory n) internal view returns (string memory) {
         return vm.readFile(string.concat("contracts/test/fixtures/redteam/", n, ".token"));
     }
@@ -57,12 +74,12 @@ contract RedTeamTest is Test {
 
     /// Fixed: demo-key tokens carrying a real IRN no longer burn the real invoice's nullifier.
     function test_fixed_demoKeyCannotBurnRealIrn() public {
-        vm.prank(b);
+        vm.prank(a);
         reg.bindInvoice(_rt("collide-nic-irn")); // forged under the demo key, carries the NIC sample IRN
         vm.prank(a);
         reg.bindInvoice(sample); // the genuine NIC-signed invoice still binds
         assertTrue(reg.isBound(NicInvoice.nullifierOf(SAMPLE_IRN)));
-        (address binder,,,) = reg.bindings(NicInvoice.nullifierOf(SAMPLE_IRN));
+        (address binder,,,,,) = reg.bindings(NicInvoice.nullifierOf(SAMPLE_IRN));
         assertEq(binder, a);
     }
 
@@ -144,7 +161,7 @@ contract RedTeamTest is Test {
         vm.prank(a);
         reg.bindInvoice(sample);
         string memory t1 = _withSig(sample, string.concat(_sigOf(sample), "=="));
-        vm.prank(b);
+        vm.prank(a);
         vm.expectRevert();
         reg.bindInvoice(t1);
     }
