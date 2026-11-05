@@ -1,0 +1,15 @@
+{
+  "chainId": 1874,
+  "explorer": "https://explorer.testnet.whitechain.io",
+  "KhataRegistry": "0xf47Cffc435D9c7ea64fD1d5aeB67D99e34Af756c",
+  "deployTxs": {
+    "create": "0x50e619f1c65250ecbd7313adf7ecd3288a488f54a0cd439ed0f67034c3f9ab12",
+    "addKeyNic": "0xb0cb5202a80ea1444752e9540498e204e6e604ffd67c4cc0a46b1bacbceb238f",
+    "addKeyDemo": "0x46f71c3f8b7b321cba33372c0b555fbe39c4175d24cfb66c761a753d931166cf"
+  },
+  "superseded": [
+    "0x321Ac7c6C2Ea6A0c3645420441D152D7280747F5",
+    "0x082D24fD4F60954b82F420925A5Cc8349F7Afa6d",
+    "0x642722347572944654960B8CE256d7287BDcF783"
+  ]
+}

@@ -16,3 +16,6 @@ broadcast/
 *.keystore
 keystore/
 .DS_Store
+dist/
+test-results/
+playwright-report/
