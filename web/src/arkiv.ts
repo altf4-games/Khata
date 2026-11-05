@@ -273,8 +273,8 @@ export async function findAllCredentials(
 }
 
 /** Calls `onChange` with the event type whenever any entity is created, changed, extended or deleted. Returns a stop function. */
-export function watchArkiv(pub: ArkivPublic, onChange: (type: string) => void, onError?: (e: Error) => void): () => void {
-  return (pub as any).watchEntityEvents({ onEvent: (e: { type: string }) => onChange(e.type), onError: (e: Error) => onError?.(arkivError(e)) });
+export function watchArkiv(pub: ArkivPublic, onChange: (type: string) => void, onError?: (e: Error) => void, pollingInterval?: number): () => void {
+  return (pub as any).watchEntityEvents({ onEvent: (e: { type: string }) => onChange(e.type), onError: (e: Error) => onError?.(arkivError(e)), pollingInterval });
 }
 
 /** Moves a listing's expiry out to `seconds` from now. Only the listing's owner can do this. */

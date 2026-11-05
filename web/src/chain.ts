@@ -4,6 +4,7 @@ import factoryAbiJson from "./factory-abi.json";
 import noteAbiJson from "./note-abi.json";
 import attestersAbiJson from "./attesters-abi.json";
 import deployment from "../../deployments/whitechain-sepolia.json";
+import { chainTransport } from "./anon";
 
 export const whitechainSepolia = defineChain({
   id: 1874,
@@ -36,8 +37,8 @@ export const usdtPermitDomain = { name: "Tether USD", version: "1", chainId: 187
 // The attesters' EIP-712 domain.
 export const attesterDomain = { name: "KhataAttesters", version: "1", chainId: 1874, verifyingContract: attestersAddress } as const;
 
-// Reads currently go straight to the public RPC. Routing them through Anon-RPC is not built yet.
-export const publicClient = createPublicClient({ chain: whitechainSepolia, transport: http(undefined, { batch: true }) });
+// Every read goes through Anon-RPC (see anon.ts); batched so one request carries many calls.
+export const publicClient = createPublicClient({ chain: whitechainSepolia, transport: chainTransport(undefined, { batch: true }) });
 
 export interface Invoice {
   sellerGstin: string;

@@ -5,7 +5,7 @@ const widths = [375, 414, 768, 1024, 1440];
 for (const width of widths) {
   test(`no horizontal overflow and tappable controls at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/");
+    await page.goto("/?reads=direct");
 
     const check = async (label: string) => {
       const m = await page.evaluate(() => ({

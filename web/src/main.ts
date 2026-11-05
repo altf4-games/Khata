@@ -12,6 +12,7 @@ import { attesterDesk, createNotePanel, msgBanner, notesList, nowEst, walletBar 
 import { send } from "./tx";
 import { walletsFor, type Role } from "./wallets";
 import { credentialPanel, marketplace } from "./arkivViews";
+import { chipText, chooseDirect, slowAfterMs, onState, onTraffic, retryAnon, startAnon, state as anonState } from "./anon";
 import { startWatching } from "./arkivApp";
 import { refreshArkiv } from "./store";
 import { refusalFor } from "./errors";
@@ -225,8 +226,45 @@ function topbar() {
   return el("div", { class: "bar" }, el("div", { class: "wrap" }, brand,
     el("div", { class: "chips" },
       el("span", { class: "chip" }, el("span", { class: "dot on" }), "Whitechain Sepolia testnet"),
-      el("span", { class: "chip hide-sm", title: "Reads go straight to the public RPC. Anon-RPC is not built yet." }, el("span", { class: "dot" }), "Reads: direct RPC"),
+      readsChip(),
     )));
+}
+
+function readsChip() {
+  const c = chipText();
+  const chip = el("span", { class: `chip reads ${c.tone}`, title: c.title, "data-testid": "reads-chip" }, el("span", { class: "dot" }), c.text);
+  return chip;
+}
+/** Updates the chip in place when only the counters changed, so a read does not re-render the whole page. */
+function refreshChip() {
+  const old = document.querySelector('[data-testid="reads-chip"]');
+  if (old) old.replaceWith(readsChip());
+}
+
+/** What Anon-RPC is doing: a warm-up panel while Tor starts, and a plain failure message with a choice, never a silent fallback. */
+function anonBanner(): HTMLElement | null {
+  const s = anonState;
+  if (s.kind === "starting") {
+    return el("div", { class: "wrap" }, el("div", { class: "banner info", role: "status" }, el("span", { class: "spinner" }),
+      el("div", {}, el("strong", {}, "Starting Anon-RPC"),
+        el("p", {}, "Opening a private route over Tor so the RPC providers cannot link your address to the invoices you look at. It takes about 15 seconds the first time. Reads are queued and run privately as soon as it is ready (", el("span", { "data-anon-elapsed": String(s.since) }, "0 s"), ")."),
+        s.lines.length ? el("p", { class: "foot mono" }, s.lines[s.lines.length - 1]) : null,
+        // Tor sometimes cannot reach a guard and backs off for minutes, so a slow start is offered a choice, never an automatic fallback
+        el("div", { "data-anon-slow": String(s.since), hidden: true },
+          el("p", {}, "This is taking longer than usual: Tor is retrying a connection. You can keep waiting, start over, or read directly (not anonymous)."),
+          el("div", { class: "row" },
+            el("button", { class: "btn", onclick: retryAnon }, "Start over"),
+            el("button", { class: "btn ghost", onclick: chooseDirect }, "Read directly (not anonymous)"))))));
+  }
+  if (s.kind === "failed") {
+    return el("div", { class: "wrap" }, el("div", { class: "banner bad", role: "alert" }, el("span", { class: "ic" }, "✕"),
+      el("div", {}, el("strong", {}, "Anonymous reads are unavailable"),
+        el("p", {}, "Anon-RPC could not start (", s.why, "). Nothing is being read in the meantime. You can try again, or read directly: that works, but the RPC providers will see your IP address."),
+        el("div", { class: "row" },
+          el("button", { class: "btn dark", onclick: retryAnon }, "Retry anonymous reads"),
+          el("button", { class: "btn ghost", onclick: chooseDirect }, "Read directly (not anonymous)")))));
+  }
+  return null;
 }
 
 function hero() {
@@ -424,7 +462,7 @@ function render() {
   const app = document.getElementById("app")!;
   const hadFocus = document.activeElement?.id;
   const sel = (document.activeElement as HTMLTextAreaElement | null)?.selectionStart;
-  app.replaceChildren(roughDefs(), topbar(), hero(), roleSwitch());
+  app.replaceChildren(roughDefs(), topbar(), ...[anonBanner()].filter((x): x is HTMLElement => !!x), hero(), roleSwitch());
   const main = el("main", { id: "main" });
   const role = store.role;
   if (role === "supplier") {
@@ -460,8 +498,11 @@ function nullifierToCreate(): `0x${string}` | undefined {
 }
 
 // Countdowns update in place; when one reaches zero, state is re-read once.
+document.addEventListener("visibilitychange", () => {});
 const reached = new Set<string>();
 setInterval(() => {
+  document.querySelectorAll<HTMLElement>("[data-anon-elapsed]").forEach((n) => (n.textContent = `${Math.round((Date.now() - Number(n.dataset.anonElapsed)) / 1000)} s`));
+  document.querySelectorAll<HTMLElement>("[data-anon-slow]").forEach((n) => { n.hidden = Date.now() - Number(n.dataset.anonSlow) < slowAfterMs; });
   const now = nowEst();
   document.querySelectorAll<HTMLElement>("[data-until]").forEach((n) => {
     const ts = Number(n.dataset.until);
@@ -475,7 +516,7 @@ setInterval(() => {
 }, 1000);
 setInterval(() => {
   if (!store.loading && !(document.activeElement instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) void refresh();
-}, 20000);
+}, 30000); // each refresh is several round trips over Tor, so poll less often
 function spanText(s: number) {
   s = Math.round(s);
   return s < 90 ? `${s} s` : s < 5400 ? `${Math.round(s / 60)} min` : s < 172800 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 86400)} days`;
@@ -483,6 +524,9 @@ function spanText(s: number) {
 
 setRender(render);
 render();
+onState(render);
+onTraffic(refreshChip);
+startAnon();
 void refresh();
 // new, changed or expired Arkiv entities refresh the Arkiv panels straight away instead of waiting for the poll
 startWatching(() => void refreshArkiv());

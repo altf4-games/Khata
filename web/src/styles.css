@@ -210,3 +210,10 @@ summary { min-height: var(--tap); display: flex; align-items: center; cursor: po
 main a { display: inline-flex; align-items: center; min-height: var(--tap); }
 
 .notes.one { grid-template-columns: minmax(0, 1fr); }
+
+/* reads status chip */
+.chip.reads.ok .dot { background: #6fd09a; }
+.chip.reads.wait .dot { background: var(--gold); animation: pulse 1.2s ease-in-out infinite; }
+.chip.reads.bad .dot { background: #ff7a6b; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .chip.reads.wait .dot { animation: none; } }

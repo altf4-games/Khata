@@ -7,9 +7,11 @@ import {
   type CredentialRecord, type ListingRecord, type RevocationRecord,
 } from "./arkiv";
 import { wallets } from "./wallets";
+import { chainTransport } from "./anon";
 
 const env = import.meta.env as Record<string, string | undefined>;
-export const ark = arkivClients({ accessKey: env.ARKIV_ACCESS_KEY });
+// reads through Anon-RPC; a signed write is broadcast directly (see anon.ts)
+export const ark = arkivClients({ accessKey: env.ARKIV_ACCESS_KEY, transport: chainTransport() });
 export const arkivWalletFor = (w: { account: any }) => ark.wallet(w.account);
 export const hasAccessKey = Boolean(env.ARKIV_ACCESS_KEY);
 
@@ -63,8 +65,9 @@ export async function loadArkiv(now: number, filter: { minDiscountBps?: number; 
 /** Starts listening for Arkiv changes; `onChange` is called at most once per second, so a burst of events costs one refresh. */
 export function startWatching(onChange: () => void): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // polled every 8 s: each poll is a round trip over Tor, so the SDK's half-block default would flood it
   return watchArkiv(ark.pub, () => {
     clearTimeout(timer);
     timer = setTimeout(onChange, 1000);
-  });
+  }, undefined, 8000);
 }
