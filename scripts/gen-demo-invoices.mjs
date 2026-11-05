@@ -6,8 +6,9 @@ import { root } from "./lib/chain.mjs";
 import { irnFor, signToken } from "./lib/irp.mjs";
 
 const SELLER_GSTIN = "27DEMOS1234A1Z5"; // the demo seller whose wallet the attester binds
-const count = Number(process.argv[2] ?? 12);
-const amounts = [42000, 18500, 26500, 9800, 37250, 15000, 31000, 12400, 22000, 48000, 8600, 29900];
+const count = Number(process.argv[2] ?? 24);
+// small enough that the demo wallets (a few USDT in total) can pay them: Rs 1 = 0.0001 USDT in the demo rate
+const amounts = [32000, 18500, 26500, 9800, 37250, 15000, 31000, 12400, 22000, 36000, 8600, 29900];
 const pem = readFileSync(join(root, "contracts/test/fixtures/demo-irp/demo-irp.private.pem"), "utf8");
 const stamp = Date.now().toString(36).toUpperCase();
 const out = [];

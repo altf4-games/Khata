@@ -38,7 +38,7 @@ const val = (key: string, def: string) => (store.form[key] ?? def).trim();
 export function nowEst(): number {
   return store.chainNow + Math.floor((Date.now() - store.refreshedAt) / 1000);
 }
-function until(ts: number): HTMLElement {
+export function until(ts: number): HTMLElement {
   const s = el("span", { "data-until": String(ts) });
   s.textContent = ts > nowEst() ? `in ${span(ts - nowEst())}` : `${span(nowEst() - ts)} ago`;
   return s;
@@ -129,8 +129,9 @@ export function noteCard(n: NoteInfo, role: Role): HTMLElement {
       try { await closeListing(n, w); } catch { /* the listing is only discovery; the chain already closed funding */ }
       return sent;
     }, "Funding closed. Unsold notes were burned; you keep that share when the debtor pays.") }, "Close funding now"));
-    put(acts, listingControl(n, w));
   }
+  // the listing's state is shown whatever phase the note is in (it matters most after funding closes)
+  if (role === "supplier") put(acts, listingControl(n, w));
   if (n.phase === "Funding" && now > n.dueDate + n.graceSeconds) {
     acts.append(el("button", { class: "btn ghost", disabled: busy(key), onclick: () => run(key, "Marking default…", () => send(w, n.address, noteAbi, "markDefault", []), "Marked as defaulted") }, "Mark as defaulted"));
   }

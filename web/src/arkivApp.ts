@@ -3,7 +3,7 @@
 import type { Address, Hex } from "viem";
 import { attesterDomain, attestersAbi, attestersAddress, factoryAbi, factoryAddress, noteAbi, publicClient } from "./chain";
 import {
-  arkivClients, findCredentials, findListings, findRevocations, verifyCredential, verifyListing, verifyRevocation,
+  arkivClients, findAllCredentials, findListings, findRevocations, watchArkiv, verifyCredential, verifyListing, verifyRevocation,
   type CredentialRecord, type ListingRecord, type RevocationRecord,
 } from "./arkiv";
 import { wallets } from "./wallets";
@@ -19,7 +19,8 @@ export interface CheckedListing { rec: ListingRecord; ok: boolean; reason?: stri
 export interface ArkivSnapshot {
   credentials: CheckedCredential[];
   revocations: CheckedRevocation[];
-  listings: CheckedListing[];
+  listings: CheckedListing[]; // the marketplace: filtered by the investor's choices
+  ownListings: CheckedListing[]; // every listing by the demo sellers, unfiltered, so a seller always sees their own state
 }
 
 const attesterCache = new Map<string, boolean>();
@@ -35,12 +36,14 @@ const factoryNoteOf = async (nl: Hex) =>
 const noteSeller = async (n: Address) => (await publicClient.readContract({ address: n, abi: noteAbi, functionName: "seller" })) as Address;
 
 /** `now` is the chain's clock. Listings stay visible a while after their due date so settled ones can be shown. */
-export async function loadArkiv(now: number, filter: { minDiscountBps?: number; status?: string } = {}): Promise<ArkivSnapshot> {
+export async function loadArkiv(now: number, filter: { minDiscountBps?: number; status?: string; dueWithinSeconds?: number; sort?: "due" | "discount" } = {}): Promise<ArkivSnapshot> {
   const attesterAddrs = wallets.filter((w) => w.role === "attester").map((w) => w.address);
-  const [creds, listings, revs] = await Promise.all([
-    findCredentials(ark.pub, { notBefore: now, limit: 100 }),
-    findListings(ark.pub, { dueAfter: now - 6 * 3600, limit: 100, minDiscountBps: filter.minDiscountBps, status: filter.status || undefined }),
+  const sellerAddrs = wallets.filter((w) => w.role === "supplier").map((w) => w.address);
+  const [creds, listings, revs, own] = await Promise.all([
+    findAllCredentials(ark.pub, { notBefore: now }),
+    findListings(ark.pub, { dueAfter: now - 6 * 3600, limit: 100, minDiscountBps: filter.minDiscountBps, status: filter.status || undefined, dueBefore: filter.dueWithinSeconds ? now + filter.dueWithinSeconds : undefined, sort: filter.sort }),
     Promise.all(attesterAddrs.map((a) => findRevocations(ark.pub, { attester: a }))).then((x) => x.flat()),
+    Promise.all(sellerAddrs.map((a) => findListings(ark.pub, { dueAfter: now - 6 * 3600, seller: a, limit: 100 }))).then((x) => x.flat()),
   ]);
   const credentials = await Promise.all(creds.map(async (rec) => {
     const v = await verifyCredential(rec, { domain: attesterDomain, isAttester, now });
@@ -50,9 +53,18 @@ export async function loadArkiv(now: number, filter: { minDiscountBps?: number; 
     const v = await verifyRevocation(rec, { domain: attesterDomain });
     return { rec, ok: v.ok, reason: v.ok ? undefined : v.reason };
   }));
-  const checkedListings = await Promise.all(listings.map(async (rec) => {
+  const check = (list: typeof listings) => Promise.all(list.map(async (rec) => {
     const v = await verifyListing(rec, { factoryNoteOf, noteSeller }).catch(() => ({ ok: false as const, reason: "The chain could not confirm this listing." }));
     return { rec, ok: v.ok, reason: v.ok ? undefined : v.reason };
   }));
-  return { credentials, revocations, listings: checkedListings };
+  return { credentials, revocations, listings: await check(listings), ownListings: await check(own) };
+}
+
+/** Starts listening for Arkiv changes; `onChange` is called at most once per second, so a burst of events costs one refresh. */
+export function startWatching(onChange: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return watchArkiv(ark.pub, () => {
+    clearTimeout(timer);
+    timer = setTimeout(onChange, 1000);
+  });
 }

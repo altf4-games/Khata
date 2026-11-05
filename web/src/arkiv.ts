@@ -4,8 +4,8 @@
 // checked against the factory that made the note.
 import { createPublicClient, createWalletClient, ExpirationTime } from "@arkiv-network/sdk";
 import { rabdi } from "@arkiv-network/sdk/chains";
-import { and, asc, eq, gt, gte } from "@arkiv-network/sdk/query";
-import { addr, bytes, defineSchema, str, u64 } from "@arkiv-network/sdk/schema";
+import { and, asc, desc, eq, gt, gte, lte } from "@arkiv-network/sdk/query";
+import { addr, bytes, defineSchema, key as keyValue, str, u64 } from "@arkiv-network/sdk/schema";
 import { bytesToHex, hexToBytes, http, recoverTypedDataAddress, type Account, type Address, type Hex, type Transport } from "viem";
 import { ELIGIBILITY_TYPES, REVOCATION_TYPES } from "./eip712";
 
@@ -65,7 +65,7 @@ export function arkivError(e: unknown): ArkivUnavailable {
   // The SDK's top-level message can hide the cause ("Execution error without revert data" for an unfunded wallet),
   // so every message in the cause chain is searched.
   const parts: string[] = [];
-  for (let x: any = e, n = 0; x && n < 8; x = x.cause, n++) parts.push(String(x.shortMessage ?? x.message ?? x));
+  for (let x: any = e, n = 0; x && n < 8; x = x.cause, n++) parts.push(String(x.shortMessage ?? x.message ?? x) + (x.status ? ` (HTTP ${x.status})` : "") + (x.details ? ` ${x.details}` : ""));
   const msg = parts.join(" | ");
   if (/429|rate.?limit|too many/i.test(msg)) return new ArkivUnavailable("Arkiv is rate limiting this connection. Wait a few seconds and try again; a free access key lifts the limit.", e);
   if (/timeout|timed out|504|502|503|fetch failed|network/i.test(msg)) return new ArkivUnavailable("Arkiv did not answer in time. Whitechain still works; credentials already registered there are unaffected.", e);
@@ -210,14 +210,15 @@ const listingRow = (r: any): ListingRecord => ({
   faceValue: BigInt(r.faceValue?.value ?? 0), discountBps: num(r.discountBps), dueDate: num(r.dueDate), minTier: num(r.minTier),
   status: text(r.status), title: text(r.title),
 });
-export async function findListings(pub: ArkivPublic, opts: { status?: string; dueAfter: number; seller?: Address; minDiscountBps?: number; limit?: number }): Promise<ListingRecord[]> {
+export async function findListings(pub: ArkivPublic, opts: { status?: string; dueAfter: number; seller?: Address; minDiscountBps?: number; dueBefore?: number; sort?: "due" | "discount"; limit?: number }): Promise<ListingRecord[]> {
   return guard(async () => {
     const preds = [gte("dueDate", u64(opts.dueAfter))] as any[];
     if (opts.status) preds.push(eq("status", opts.status));
     if (opts.seller) preds.push(eq("seller", addr(opts.seller)));
     if (opts.minDiscountBps) preds.push(gte("discountBps", u64(opts.minDiscountBps)));
+    if (opts.dueBefore) preds.push(lte("dueDate", u64(opts.dueBefore)));
     const res = await (pub.select({ $key: true, $owner: true, note: true, seller: true, nullifier: true, faceValue: true, discountBps: true, dueDate: true, minTier: true, status: true, title: true })
-      .from(Listing) as any).where(pred(preds)).orderBy(asc("dueDate")).limit(opts.limit ?? 50).fetch();
+      .from(Listing) as any).where(pred(preds)).orderBy(opts.sort === "discount" ? desc("discountBps") : asc("dueDate")).limit(opts.limit ?? 50).fetch();
     return res.entities.map(listingRow);
   });
 }
@@ -228,4 +229,70 @@ export async function verifyListing(l: ListingRecord, ctx: { factoryNoteOf: (nul
   if (made.toLowerCase() !== l.note.toLowerCase()) return { ok: false, reason: "The note is not the one Khata created for this invoice." };
   if ((await ctx.noteSeller(l.note)).toLowerCase() !== l.seller.toLowerCase()) return { ok: false, reason: "The listed seller is not the note's seller." };
   return { ok: true };
+}
+
+// ---------- paging by key, live events, extension ----------
+const SELECT_CREDENTIAL = { $key: true, $owner: true, subject: true, attester: true, tier: true, validUntil: true, credId: true, jurisdiction: true, signature: true } as const;
+
+/**
+ * Every unexpired credential matching the filters, read exactly once even while others write: sorted by
+ * `$key`, each page continues after the last key of the previous one (offsets would repeat or skip rows
+ * when entities are created or deleted between requests).
+ *
+ * Anyone can write an entity that matches the query but does not fit the schema; such rows are skipped by the
+ * SDK. If a whole page is skipped there is no row to continue from, so the cursor is read from a keys-only query.
+ */
+export async function findAllCredentials(
+  pub: ArkivPublic,
+  opts: { subject?: Address; attester?: Address; notBefore: number; pageSize?: number; onPage?: (rows: CredentialRecord[]) => void | Promise<void> },
+): Promise<CredentialRecord[]> {
+  return guard(async () => {
+    const pageSize = Math.min(opts.pageSize ?? 100, 100);
+    const out: CredentialRecord[] = [];
+    let cursor: Hex | undefined;
+    for (;;) {
+      const preds = [gt("validUntil", u64(opts.notBefore))] as any[];
+      if (opts.subject) preds.push(eq("subject", addr(opts.subject)));
+      if (opts.attester) preds.push(eq("attester", addr(opts.attester)));
+      if (cursor) preds.push(gt("$key", keyValue(cursor)));
+      const res = await (pub.select(SELECT_CREDENTIAL).from(Credential) as any).where(pred(preds)).orderBy(asc("$key")).limit(pageSize).fetch();
+      const rows: CredentialRecord[] = res.entities.map(credRow);
+      out.push(...rows);
+      await opts.onPage?.(rows);
+      let last = rows.length ? rows[rows.length - 1].entityKey : undefined;
+      if (res.skipped > 0) {
+        const keys = await (pub.select({ $key: true }) as any).where(pred(preds)).orderBy(asc("$key")).limit(pageSize).fetch();
+        const k = keys.entities.map((e: any) => e.$key as Hex);
+        if (k.length) last = k[k.length - 1];
+      }
+      if (!last || (rows.length + res.skipped < pageSize)) break;
+      cursor = last;
+    }
+    return out;
+  });
+}
+
+/** Calls `onChange` with the event type whenever any entity is created, changed, extended or deleted. Returns a stop function. */
+export function watchArkiv(pub: ArkivPublic, onChange: (type: string) => void, onError?: (e: Error) => void): () => void {
+  return (pub as any).watchEntityEvents({ onEvent: (e: { type: string }) => onChange(e.type), onError: (e: Error) => onError?.(arkivError(e)) });
+}
+
+/** Moves a listing's expiry out to `seconds` from now. Only the listing's owner can do this. */
+export async function extendListing(w: ArkivWallet, entityKey: Hex, seconds: number) {
+  return guard(() => w.extendEntity({ entityKey, expiration: ExpirationTime.fromSeconds(seconds) }));
+}
+
+
+/**
+ * The credential to offer an investor for activation: the longest-lived one that verified and that no verified
+ * revocation names. Registering a revoked credential on Whitechain would only revert.
+ */
+export function pickActivatable<C extends { rec: CredentialRecord; ok: boolean }>(
+  credentials: C[],
+  revocations: { rec: RevocationRecord; ok: boolean }[],
+): C | undefined {
+  const revoked = new Set(revocations.filter((r) => r.ok).map((r) => r.rec.credId.toLowerCase()));
+  return credentials
+    .filter((c) => c.ok && !revoked.has(c.rec.credId.toLowerCase()))
+    .sort((a, b) => b.rec.validUntil - a.rec.validUntil)[0];
 }

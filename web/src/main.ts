@@ -12,6 +12,8 @@ import { attesterDesk, createNotePanel, msgBanner, notesList, nowEst, walletBar 
 import { send } from "./tx";
 import { walletsFor, type Role } from "./wallets";
 import { credentialPanel, marketplace } from "./arkivViews";
+import { startWatching } from "./arkivApp";
+import { refreshArkiv } from "./store";
 import { refusalFor } from "./errors";
 import { classify, formatRupees } from "./verdict";
 import { decodeImageFile, startCamera, type CameraScan } from "./scan";
@@ -482,3 +484,5 @@ function spanText(s: number) {
 setRender(render);
 render();
 void refresh();
+// new, changed or expired Arkiv entities refresh the Arkiv panels straight away instead of waiting for the poll
+startWatching(() => void refreshArkiv());

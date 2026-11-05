@@ -11,6 +11,10 @@ for (const width of widths) {
       const m = await page.evaluate(() => ({
         sw: document.documentElement.scrollWidth,
         iw: window.innerWidth,
+        // text squeezed into a sliver (a card nested in a card, wrapping one letter per line) is a layout bug even with no overflow
+        narrow: [...document.querySelectorAll<HTMLElement>("dl.facts dd, .note h3, .note .big")]
+          .filter((e) => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().width < 90)
+          .map((e) => `${e.textContent?.trim().slice(0, 20)} ${Math.round(e.getBoundingClientRect().width)}px`),
         small: [...document.querySelectorAll<HTMLElement>("button, a, label.btn, summary, select, input:not(.sr-only)")]
           .filter((e) => {
             const r = e.getBoundingClientRect();
@@ -20,6 +24,7 @@ for (const width of widths) {
       }));
       expect(m.sw, `${label}: page is wider than the viewport`).toBeLessThanOrEqual(m.iw);
       expect(m.small, `${label}: tap targets under 44px`).toEqual([]);
+      expect(m.narrow, `${label}: text squeezed into under 90px`).toEqual([]);
     };
 
     await check("empty state");
@@ -33,6 +38,7 @@ for (const width of widths) {
     for (const role of ["Investor", "Debtor", "Attester", "Supplier"]) {
       await page.getByRole("tab", { name: new RegExp(role) }).click();
       await expect(page.locator(".wallet")).toBeVisible();
+      if (role === "Investor") await expect(page.locator("#h-market ~ .notes .note, #h-market ~ div .note").first()).toBeVisible({ timeout: 60_000 }); // the marketplace, read from Arkiv
       if (role !== "Attester") await expect(page.locator(".note").first()).toBeVisible({ timeout: 30_000 });
       else await expect(page.getByText("Issue an investor credential")).toBeVisible();
       await check(`${role} view`);

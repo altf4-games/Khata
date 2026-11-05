@@ -3,9 +3,9 @@ import type { Hex } from "viem";
 import { attestersAbi, attestersAddress, addressUrl } from "./chain";
 import { el, put, short } from "./ui";
 import { refreshArkiv, run, store } from "./store";
-import { busy, field, msgBanner, nowEst, noteCard } from "./views";
+import { busy, field, msgBanner, noteCard, nowEst, until } from "./views";
 import { arkivWalletFor } from "./arkivApp";
-import { publishListing, setListingStatus } from "./arkiv";
+import { extendListing, pickActivatable, publishListing, setListingStatus } from "./arkiv";
 import { usdt, when, type NoteInfo } from "./notes";
 import { nameOf, type DemoWallet, type Role } from "./wallets";
 import { send } from "./tx";
@@ -28,19 +28,20 @@ export function credentialPanel(w: DemoWallet): HTMLElement {
     return panel;
   }
   const mine = store.arkiv.credentials.filter((c) => c.rec.subject.toLowerCase() === k);
-  const good = mine.filter((c) => c.ok).sort((a, b) => b.rec.validUntil - a.rec.validUntil)[0];
+  const good = pickActivatable(mine, store.arkiv.revocations);
   const bad = mine.filter((c) => !c.ok);
   const active = e && e.reason === "Eligible";
 
   if (active) {
-    panel.append(el("div", { class: "banner ok" }, el("span", { class: "ic" }, "✓"), el("div", {}, el("strong", {}, "Active on Whitechain"), el("p", {}, `Tier ${e.tier}, valid until ${when(e.validUntil)}. The note contract checks this itself on every transfer.`))));
+    panel.append(el("div", { class: "banner ok" }, el("span", { class: "ic" }, "✓"), el("div", {}, el("strong", {}, "Active on Whitechain"),
+      el("p", {}, `Tier ${e.tier}. Expires ${when(e.validUntil)} (`, until(e.validUntil), "). The note contract checks this itself on every transfer."))));
   } else {
     panel.append(el("p", { class: "muted" }, e ? `Whitechain says this wallet is not eligible (${e.reason}).` : "Whitechain has no credential for this wallet."));
   }
   if (good && (!active || e!.credId?.toLowerCase() !== good.rec.credId.toLowerCase())) {
     const c = good.rec;
     panel.append(
-      el("div", { class: "banner info" }, el("span", { class: "ic" }, "i"), el("div", {}, el("strong", {}, "Found on Arkiv"), el("p", {}, `A credential from ${nameOf(c.attester) ?? short(c.attester)} is published for this wallet (tier ${c.tier}, valid until ${when(c.validUntil)}). Its signature checks out. It only counts once it is registered on Whitechain, which you pay for, not the attester.`))),
+      el("div", { class: "banner info" }, el("span", { class: "ic" }, "i"), el("div", {}, el("strong", {}, "Found on Arkiv"), el("p", {}, `A credential from ${nameOf(c.attester) ?? short(c.attester)} is published for this wallet (tier ${c.tier}, expires ${when(c.validUntil)}). Its signature checks out. It only counts once it is registered on Whitechain, which you pay for, not the attester.`))),
       el("div", { class: "row" }, el("button", {
         class: "btn primary grow", disabled: busy(key),
         onclick: () => void run(key, "Registering on Whitechain…", () => send(w, attestersAddress, attestersAbi, "register", [
@@ -81,6 +82,8 @@ export function marketplace(role: Role): HTMLElement {
     el("div", { class: "grid2" },
       field("Status", "m:status", "open", { options: [["open", "Open"], ["closed", "Closed"], ["", "All"]] }),
       field("Minimum discount (%)", "m:disc", "0", { type: "number", hint: "Filtered by the Arkiv query itself" }),
+      field("Due within", "m:due", "0", { options: [["0", "Any time"], ["3600", "1 hour"], ["86400", "1 day"], ["604800", "7 days"]] }),
+      field("Sort by", "m:sort", "due", { options: [["due", "Due date, soonest first"], ["discount", "Highest discount first"]] }),
     ),
     el("div", { class: "row", style: "margin-top:0" }, el("button", { class: "btn", onclick: () => void refreshArkiv() }, "Apply filters")));
   put(wrap, arkivDown());
@@ -88,10 +91,17 @@ export function marketplace(role: Role): HTMLElement {
     if (!store.arkivError) wrap.append(el("div", { class: "banner info", role: "status" }, el("span", { class: "spinner" }), el("div", {}, el("strong", {}, "Reading listings from Arkiv…"))));
     return wrap;
   }
-  const good = store.arkiv.listings.filter((l) => l.ok);
+  // A seller can forget to update a listing, so for "open" the chain has the last word: a note that has settled,
+  // defaulted or stopped taking funding is not shown as open even if its listing still says so.
+  const wantsOpen = (store.form["m:status"] ?? "open") === "open";
+  const stale = (addr: string) => {
+    const n = store.notes.find((x) => x.address.toLowerCase() === addr.toLowerCase());
+    return !!n && (n.phase !== "Funding" || n.fundingClosed);
+  };
+  const good = store.arkiv.listings.filter((l) => l.ok && !(wantsOpen && stale(l.rec.note)));
   const ignored = store.arkiv.listings.filter((l) => !l.ok);
   if (!good.length) wrap.append(el("div", { class: "empty" }, el("h3", {}, "No listings match"), el("p", {}, "Sellers publish a listing after creating a note. Widen the filters, or switch to the supplier role to create one.")));
-  const cards = el("div", { class: "notes" });
+  const cards = el("div", { class: "notes one" }); // one column: this card already sits in half the page width
   for (const l of good) {
     const n = store.notes.find((x) => x.address.toLowerCase() === l.rec.note.toLowerCase());
     cards.append(el("div", {}, el("p", { class: "foot" }, el("span", { class: "badge real" }, "Listed on Arkiv"), " ", l.rec.title, " · yield ", `${(l.rec.discountBps / 100).toFixed(2)}% discount`),
@@ -109,8 +119,21 @@ export function marketplace(role: Role): HTMLElement {
 export function listingControl(n: NoteInfo, w: DemoWallet): HTMLElement | null {
   if (n.seller.toLowerCase() !== w.address.toLowerCase()) return null;
   const key = `list:${n.address}`;
-  const existing = store.arkiv?.listings.find((l) => l.rec.note.toLowerCase() === n.address.toLowerCase() && l.rec.owner.toLowerCase() === w.address.toLowerCase());
-  if (existing) return el("p", { class: "foot" }, el("span", { class: "badge real" }, existing.rec.status === "open" ? "Listed on Arkiv" : `Listing ${existing.rec.status}`));
+  const existing = store.arkiv?.ownListings.find((l) => l.rec.note.toLowerCase() === n.address.toLowerCase() && l.rec.owner.toLowerCase() === w.address.toLowerCase());
+  if (existing) {
+    const inGrace = nowEst() > n.dueDate && n.phase === "Funding";
+    const xk = `extend:${n.address}`;
+    return el("div", {}, el("p", { class: "foot" }, el("span", { class: "badge real" }, existing.rec.status === "open" ? "Listed on Arkiv" : `Listing ${existing.rec.status}`)),
+      inGrace ? el("div", { class: "row" }, el("button", {
+        class: "btn", disabled: busy(xk),
+        onclick: () => void run(xk, "Extending the listing…", async () => {
+          const r = await extendListing(arkivWalletFor(w), existing.rec.entityKey, 3600);
+          void refreshArkiv();
+          return { hash: r.txHash as Hex, gasUsed: 0n };
+        }, "Listing extended by an hour", "It stays visible while the debtor is in the grace period."),
+      }, "Extend the listing")) : null,
+      inGrace ? msgBanner(xk) : null);
+  }
   if (!store.arkiv) return null;
   return el("div", { class: "panel" }, el("h4", {}, "Marketplace"),
     el("p", { class: "foot" }, "Publish a listing on Arkiv so investors can find this note. Needs a little Arkiv testnet gas (tGLM) on this wallet."),
@@ -127,6 +150,6 @@ export function listingControl(n: NoteInfo, w: DemoWallet): HTMLElement | null {
 }
 
 export async function closeListing(n: NoteInfo, w: DemoWallet) {
-  const l = store.arkiv?.listings.find((x) => x.rec.note.toLowerCase() === n.address.toLowerCase() && x.rec.owner.toLowerCase() === w.address.toLowerCase());
+  const l = store.arkiv?.ownListings.find((x) => x.rec.note.toLowerCase() === n.address.toLowerCase() && x.rec.owner.toLowerCase() === w.address.toLowerCase());
   if (l && l.rec.status === "open") await setListingStatus(arkivWalletFor(w), l.rec.entityKey, "closed");
 }

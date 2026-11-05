@@ -122,7 +122,11 @@ export async function refreshArkiv(now = nowEst2()) {
   const mine = ++aseq;
   try {
     const disc = Math.round(Number(store.form["m:disc"] ?? "0") * 100);
-    const snap = await loadArkiv(now, { minDiscountBps: Number.isFinite(disc) ? disc : 0, status: store.form["m:status"] ?? "open" });
+    const dueWithin = Number(store.form["m:due"] ?? "0");
+    const snap = await loadArkiv(now, {
+      minDiscountBps: Number.isFinite(disc) ? disc : 0, status: store.form["m:status"] ?? "open",
+      dueWithinSeconds: Number.isFinite(dueWithin) ? dueWithin : 0, sort: (store.form["m:sort"] as "due" | "discount") ?? "due",
+    });
     if (mine !== aseq) return;
     store.arkiv = snap;
     store.arkivError = "";

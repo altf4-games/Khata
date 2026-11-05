@@ -208,3 +208,5 @@ summary { min-height: var(--tap); display: flex; align-items: center; cursor: po
 
 /* links inside the app are tap targets too */
 main a { display: inline-flex; align-items: center; min-height: var(--tap); }
+
+.notes.one { grid-template-columns: minmax(0, 1fr); }
