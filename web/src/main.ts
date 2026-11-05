@@ -1,31 +1,19 @@
 import "./styles.css";
 import heroSvg from "./hero.svg?raw";
 import nicSample from "../../contracts/test/fixtures/nic-sample.token?raw";
-import demoInvoice from "../../contracts/test/fixtures/demo-irp/demo-02.token?raw";
+import demoInvoices from "./demo-invoices.json";
 import {
-  addressUrl, connectWallet, DUMMY_SENDER, inspect, publicClient, registryAddress, revertInfo, simulateBind, txUrl,
+  abi, addressUrl, DUMMY_SENDER, factoryAbi, factoryAddress, inspect, publicClient, registryAddress, revertInfo, simulateBind, txUrl,
   type Inspection,
 } from "./chain";
+import { el, short } from "./ui";
+import { activeWallet, refresh, rerender, run, setRender, store } from "./store";
+import { attesterDesk, createNotePanel, msgBanner, notesList, nowEst, walletBar } from "./views";
+import { send } from "./tx";
+import { walletsFor, type Role } from "./wallets";
 import { refusalFor } from "./errors";
 import { classify, formatRupees } from "./verdict";
 import { decodeImageFile, startCamera, type CameraScan } from "./scan";
-import { abi } from "./chain";
-import type { Address } from "viem";
-
-// ---------- tiny DOM helper ----------
-type Child = Node | string | null | undefined | false;
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, any> = {}, ...kids: Child[]): HTMLElementTagNameMap[K] {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === false) continue;
-    if (k === "class") n.className = v;
-    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
-    else n.setAttribute(k, v === true ? "" : String(v));
-  }
-  for (const c of kids) if (c) n.append(c);
-  return n;
-}
-const short = (s: string, a = 8, b = 6) => (s.length > a + b + 3 ? `${s.slice(0, a)}…${s.slice(-b)}` : s);
 
 // ---------- state ----------
 type View =
@@ -37,19 +25,17 @@ type View =
 type Action =
   | { kind: "none" }
   | { kind: "simulating" }
-  | { kind: "needWallet" }
+  | { kind: "readOnly" }
   | { kind: "sending" }
   | { kind: "done"; hash: string; gas: bigint }
   | { kind: "refused"; title: string; detail: string };
 
 const state = {
-  role: "supplier" as "supplier" | "investor" | "debtor" | "attester",
   token: "",
   checkedToken: "", // the exact text the panel currently describes
   cameraStarting: false,
   view: { kind: "idle" } as View,
   action: { kind: "none" } as Action,
-  wallet: undefined as undefined | { account: Address; walletClient: any },
   camera: undefined as CameraScan | undefined,
   cameraNote: "",
 };
@@ -87,11 +73,11 @@ async function finance() {
   // Only ever act on the exact text the panel has verified, never on whatever is in the box right now.
   const token = state.checkedToken;
   if (!token || state.token.trim() !== token) return;
+  const w = activeWallet("supplier");
   state.action = { kind: "simulating" };
   render();
-  const sender = state.wallet?.account ?? DUMMY_SENDER;
   try {
-    await simulateBind(token, sender);
+    await simulateBind(token, w?.address ?? DUMMY_SENDER);
   } catch (e) {
     if (state.checkedToken !== token) return;
     const info = revertInfo(e);
@@ -99,21 +85,19 @@ async function finance() {
     return render();
   }
   if (state.checkedToken !== token) return;
-  if (!state.wallet) {
-    state.action = { kind: "needWallet" };
+  if (!w) {
+    state.action = { kind: "readOnly" };
     return render();
   }
   state.action = { kind: "sending" };
   render();
   try {
-    const hash = await state.wallet.walletClient.writeContract({
-      address: registryAddress, abi, functionName: "bindInvoice", args: [token], account: state.wallet.account,
-    });
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    if (receipt.status !== "success") throw new Error("The transaction was mined but reverted.");
+    // bindInvoice verifies the RSA signature and parses the payload before it can refuse, so give it a fixed gas budget.
+    const sent = await send(w, registryAddress, abi, "bindInvoice", [token], 1_500_000n);
     if (state.checkedToken !== token) return; // the user moved on to another invoice; do not claim it here
-    state.action = { kind: "done", hash, gas: receipt.gasUsed };
+    state.action = { kind: "done", hash: sent.hash, gas: sent.gasUsed };
     await refreshAfterBind(token);
+    void refresh();
   } catch (e) {
     if (state.checkedToken !== token) return;
     const info = revertInfo(e);
@@ -129,17 +113,20 @@ async function refreshAfterBind(token: string) {
   } catch {}
 }
 
-async function onConnect() {
-  try {
-    state.wallet = await connectWallet();
-    if (state.action.kind === "needWallet") return finance();
-  } catch (e: any) {
-    state.action =
-      e?.message === "no-wallet"
-        ? { kind: "refused", title: "No wallet found in this browser", detail: "Install a browser wallet such as MetaMask, or open this page in a browser that has one. Checking an invoice works without a wallet." }
-        : { kind: "refused", title: "Wallet not connected", detail: "The wallet request was cancelled or failed. Nothing was sent." };
-  }
+let demoBusy = false;
+async function useDemoInvoice() {
+  demoBusy = true;
   render();
+  try {
+    for (const d of demoInvoices) {
+      const r = await inspect(d.token).catch(() => undefined);
+      if (r && !r.alreadyBound) return setToken(d.token);
+    }
+    state.view = { kind: "refused", title: "All prepared demo invoices are used", detail: "Run npm run gen:demo-invoices to sign a fresh batch." };
+  } finally {
+    demoBusy = false;
+    render();
+  }
 }
 
 function flipOneByte() {
@@ -211,7 +198,7 @@ async function onFile(ev: Event) {
 // ---------- views ----------
 const LOGO = `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="4" width="32" height="40" rx="4" fill="#7d1816"/><rect x="10" y="4" width="28" height="40" rx="3" fill="#a3211f"/><rect x="8" y="19" width="32" height="8" fill="#f5b301"/><circle cx="24" cy="23" r="2.2" fill="#a3211f"/><path d="M15 10h18M15 14h18M15 33h18M15 37h12" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 
-const ROLES: { id: typeof state.role; label: string; note: string }[] = [
+const ROLES: { id: Role; label: string; note: string }[] = [
   { id: "supplier", label: "Supplier", note: "issues the invoice" },
   { id: "investor", label: "Investor", note: "funds the note" },
   { id: "debtor", label: "Debtor", note: "pays on due date" },
@@ -258,8 +245,8 @@ function roleSwitch() {
   const roles = el("ul", { class: "roles", role: "tablist", "aria-label": "Choose a role" });
   for (const r of ROLES) {
     roles.append(el("li", {}, el("button", {
-      class: "role-btn", role: "tab", "aria-selected": String(state.role === r.id),
-      onclick: () => { state.role = r.id; render(); },
+      class: "role-btn", role: "tab", "aria-selected": String(store.role === r.id),
+      onclick: () => { store.role = r.id; render(); void refresh(); },
     }, r.label, el("small", {}, r.note))));
   }
   return el("nav", { class: "switch", "aria-label": "Role switcher" }, el("div", { class: "wrap" }, roles));
@@ -301,7 +288,7 @@ function inputCard() {
     el("p", { class: "sample-label" }, "No QR to hand? Try one:"),
     el("div", { class: "row", style: "margin-top:.5rem" },
       el("button", { class: "btn grow", onclick: () => setToken(nicSample.trim()) }, "NIC sample QR"),
-      el("button", { class: "btn grow", onclick: () => setToken(demoInvoice.trim()) }, "DEMO IRP invoice"),
+      el("button", { class: "btn grow", onclick: useDemoInvoice, disabled: demoBusy }, demoBusy ? "Finding one…" : "DEMO IRP invoice"),
       el("button", { class: "btn grow ghost", onclick: flipOneByte, disabled: !state.token }, "Change one byte"),
     ),
   );
@@ -397,13 +384,10 @@ function actions(r: Inspection) {
   const busy = a.kind === "simulating" || a.kind === "sending";
   wrap.append(el("div", { class: "row", style: "margin-top:0" },
     el("button", { class: "btn primary grow", onclick: finance, disabled: busy || state.token.trim() !== state.checkedToken }, busy ? el("span", { class: "spinner" }) : null, a.kind === "sending" ? "Waiting for the network…" : label),
-    state.wallet ? el("span", { class: "foot", style: "align-self:center" }, "Wallet ", el("span", { class: "mono" }, short(state.wallet.account, 6, 4))) : null,
+    activeWallet("supplier") ? el("span", { class: "foot", style: "align-self:center" }, "Sending as ", el("span", { class: "mono" }, short(activeWallet("supplier")!.address, 6, 4))) : null,
   ));
-  if (a.kind === "needWallet") {
-    wrap.append(
-      el("div", { class: "banner info" }, el("span", { class: "ic" }, "i"), el("div", {}, el("strong", {}, "The contract would accept this"), el("p", {}, "To send the transaction, connect a wallet funded with testnet WBT."))),
-      el("div", { class: "row", style: "margin-top:0" }, el("button", { class: "btn grow", onclick: onConnect }, "Connect wallet")),
-    );
+  if (a.kind === "readOnly") {
+    wrap.append(el("div", { class: "banner info" }, el("span", { class: "ic" }, "i"), el("div", {}, el("strong", {}, "The contract would accept this"), el("p", {}, "This build has no demo wallet, so it cannot send the transaction. Run it locally with the demo keys to finish."))));
   }
   if (a.kind === "refused") {
     wrap.append(el("div", { class: "banner bad", role: "alert" }, el("span", { class: "ic" }, "✕"), el("div", {}, el("strong", {}, a.title), el("p", {}, a.detail))));
@@ -416,16 +400,6 @@ function actions(r: Inspection) {
   return wrap;
 }
 
-function otherRole() {
-  const r = ROLES.find((x) => x.id === state.role)!;
-  return el("div", { class: "card notice" },
-    el("span", { class: "kicker" }, "Not built yet"),
-    el("h2", {}, `${r.label} view`),
-    el("p", { class: "muted" }, "This role's screen is not built yet. The supplier view works today and checks a real NIC signature on-chain."),
-    el("div", { class: "row", style: "justify-content:center" }, el("button", { class: "btn dark", onclick: () => { state.role = "supplier"; render(); } }, "Back to the supplier view")),
-  );
-}
-
 function footer() {
   return el("footer", { class: "footer" }, el("div", { class: "wrap" },
     el("p", { style: "margin:0" }, el("span", { class: "tag" }, "TESTNET DEMO"), " Built solo for ETHGlobal Mumbai 2026. Funds here have no value."),
@@ -434,17 +408,34 @@ function footer() {
   ));
 }
 
+function roleIntro(role: Role): HTMLElement | null {
+  const text: Record<string, string> = {
+    investor: "Buy a slice of an invoice at a discount. The USDT goes straight to the supplier in the same transaction as the notes. Only wallets with a valid credential can hold them.",
+    debtor: "You are the buyer on the invoice. On the due date you pay the face value in USDT; holders then redeem.",
+    attester: "You are the trusted signer. You vouch that a wallet may hold notes, and that a seller wallet really belongs to a GSTIN. Both are checked on-chain from your signature.",
+  };
+  return text[role] ? el("div", { class: "wrap" }, el("p", { class: "lede" }, text[role])) : null;
+}
+
 function render() {
   const app = document.getElementById("app")!;
   const hadFocus = document.activeElement?.id;
   const sel = (document.activeElement as HTMLTextAreaElement | null)?.selectionStart;
   app.replaceChildren(roughDefs(), topbar(), hero(), roleSwitch());
   const main = el("main", { id: "main" });
-  if (state.role === "supplier") {
+  const role = store.role;
+  if (role === "supplier") {
     main.append(el("div", { class: "wrap" }, steps()));
     main.append(el("div", { class: "wrap two" }, inputCard(), resultCard()));
+    const nl = nullifierToCreate();
+    if (nl) main.append(el("div", { class: "wrap" }, createNotePanel(nl)));
+    main.append(el("div", { class: "wrap" }, walletBar("supplier"), el("h2", { class: "section" }, "Your notes"),
+      notesList("supplier", (n) => n.seller.toLowerCase() === activeWallet("supplier")?.address.toLowerCase(), "Register an invoice above, then create its note.")));
+  } else if (role === "attester") {
+    main.append(...[roleIntro(role)].filter((x): x is HTMLElement => !!x), el("div", { class: "wrap" }, walletBar(role)), ...attesterDesk().map((c) => el("div", { class: "wrap" }, c)));
   } else {
-    main.append(el("div", { class: "wrap" }, otherRole()));
+    main.append(...[roleIntro(role)].filter((x): x is HTMLElement => !!x), el("div", { class: "wrap" }, walletBar(role), el("h2", { class: "section" }, "Notes"),
+      notesList(role, undefined, "No notes exist yet. Switch to the supplier role to register an invoice and create one.")));
   }
   app.append(main, footer());
   if (hadFocus === "token") {
@@ -454,4 +445,35 @@ function render() {
   }
 }
 
+/** The nullifier of the invoice on screen, once it is registered by this supplier wallet. */
+function nullifierToCreate(): `0x${string}` | undefined {
+  const v = state.view;
+  if (v.kind !== "result" || !v.r.alreadyBound || state.token.trim() !== state.checkedToken) return undefined;
+  return v.r.nullifier;
+}
+
+// Countdowns update in place; when one reaches zero, state is re-read once.
+const reached = new Set<string>();
+setInterval(() => {
+  const now = nowEst();
+  document.querySelectorAll<HTMLElement>("[data-until]").forEach((n) => {
+    const ts = Number(n.dataset.until);
+    const d = ts - now;
+    n.textContent = d > 0 ? `in ${spanText(d)}` : `${spanText(-d)} ago`;
+    if (d <= 0 && !reached.has(String(ts))) {
+      reached.add(String(ts));
+      if (!store.loading && !(document.activeElement instanceof HTMLInputElement)) void refresh();
+    }
+  });
+}, 1000);
+setInterval(() => {
+  if (!store.loading && !(document.activeElement instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) void refresh();
+}, 20000);
+function spanText(s: number) {
+  s = Math.round(s);
+  return s < 90 ? `${s} s` : s < 5400 ? `${Math.round(s / 60)} min` : s < 172800 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 86400)} days`;
+}
+
+setRender(render);
 render();
+void refresh();

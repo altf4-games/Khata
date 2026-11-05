@@ -11,7 +11,7 @@ for (const width of widths) {
       const m = await page.evaluate(() => ({
         sw: document.documentElement.scrollWidth,
         iw: window.innerWidth,
-        small: [...document.querySelectorAll<HTMLElement>("button, a, label.btn")]
+        small: [...document.querySelectorAll<HTMLElement>("button, a, label.btn, summary, select, input:not(.sr-only)")]
           .filter((e) => {
             const r = e.getBoundingClientRect();
             return r.width > 0 && r.height < 44;
@@ -29,5 +29,13 @@ for (const width of widths) {
     await page.getByRole("button", { name: "Change one byte" }).click();
     await expect(page.getByText("Refused: the signature does not match")).toBeVisible({ timeout: 30_000 });
     await check("refusal panel");
+
+    for (const role of ["Investor", "Debtor", "Attester", "Supplier"]) {
+      await page.getByRole("tab", { name: new RegExp(role) }).click();
+      await expect(page.locator(".wallet")).toBeVisible();
+      if (role !== "Attester") await expect(page.locator(".note").first()).toBeVisible({ timeout: 30_000 });
+      else await expect(page.getByText("Issue an investor credential")).toBeVisible();
+      await check(`${role} view`);
+    }
   });
 }

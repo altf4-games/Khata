@@ -1,5 +1,8 @@
-import { createPublicClient, createWalletClient, custom, defineChain, http, type Address, type Hex } from "viem";
+import { createPublicClient, defineChain, http, parseAbi, type Address, type Hex } from "viem";
 import registryAbi from "./registry-abi.json";
+import factoryAbiJson from "./factory-abi.json";
+import noteAbiJson from "./note-abi.json";
+import attestersAbiJson from "./attesters-abi.json";
 import deployment from "../../deployments/whitechain-sepolia.json";
 
 export const whitechainSepolia = defineChain({
@@ -10,12 +13,31 @@ export const whitechainSepolia = defineChain({
   blockExplorers: { default: { name: "Whitechain Explorer", url: deployment.explorer } },
 });
 
-export const registryAddress = deployment.KhataRegistry as Address;
+const stage = deployment.stage2;
+export const registryAddress = stage.KhataRegistry as Address;
+export const factoryAddress = stage.KhataFactory as Address;
+export const attestersAddress = stage.AttesterRegistry as Address;
+export const usdtAddress = stage.usdt as Address;
+export const factoryDeployTx = stage.deployTxs.KhataFactory as Hex;
 export const explorerUrl = deployment.explorer;
 export const abi = registryAbi as never;
+export const factoryAbi = factoryAbiJson as never;
+export const noteAbi = noteAbiJson as never;
+export const attestersAbi = attestersAbiJson as never;
+export const usdtAbi = parseAbi([
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
+  "function nonces(address) view returns (uint256)",
+  "function DOMAIN_SEPARATOR() view returns (bytes32)",
+]);
+// USDT permit domain on Whitechain, recovered by hashing candidates against DOMAIN_SEPARATOR (see logs/whitechain.md).
+export const usdtPermitDomain = { name: "Tether USD", version: "1", chainId: 1874, verifyingContract: usdtAddress } as const;
+// The attesters' EIP-712 domain.
+export const attesterDomain = { name: "KhataAttesters", version: "1", chainId: 1874, verifyingContract: attestersAddress } as const;
 
 // Reads currently go straight to the public RPC. Routing them through Anon-RPC is not built yet.
-export const publicClient = createPublicClient({ chain: whitechainSepolia, transport: http() });
+export const publicClient = createPublicClient({ chain: whitechainSepolia, transport: http(undefined, { batch: true }) });
 
 export interface Invoice {
   sellerGstin: string;
@@ -58,24 +80,6 @@ export const DUMMY_SENDER = "0x000000000000000000000000000000000000dEaD" as Addr
 
 export async function simulateBind(token: string, account: Address) {
   return publicClient.simulateContract({ address: registryAddress, abi, functionName: "bindInvoice", args: [token], account });
-}
-
-export function eip1193(): any | undefined {
-  return (window as any).ethereum;
-}
-
-export async function connectWallet() {
-  const provider = eip1193();
-  if (!provider) throw new Error("no-wallet");
-  const walletClient = createWalletClient({ chain: whitechainSepolia, transport: custom(provider) });
-  const [account] = await walletClient.requestAddresses();
-  try {
-    await walletClient.switchChain({ id: whitechainSepolia.id });
-  } catch {
-    await walletClient.addChain({ chain: whitechainSepolia });
-    await walletClient.switchChain({ id: whitechainSepolia.id });
-  }
-  return { walletClient, account };
 }
 
 export function txUrl(hash: string) {
