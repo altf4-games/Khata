@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { domainSeparator, formatUnits, hexToSignature, parseAbi, parseUnits, getAddress } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { abiOf, clients, deployment, revertName, root, wallet } from "./lib/chain.mjs";
 import { DEMO_KID, irnFor, signToken } from "./lib/irp.mjs";
 
@@ -61,7 +62,9 @@ async function expectRevert(label, role, target, abi, fn, args, errorName, recor
     const r = revertName(err);
     assert.equal(r?.name, errorName, `${label}: expected ${errorName}, got ${r?.name ?? err.shortMessage}`);
     if (recordOnChain) {
-      const { hash, receipt } = await send(`${label} (refused)`, role, target, abi, fn, args, { gas: 1_500_000n });
+      // bindInvoice verifies and parses before it can refuse, so it needs room to reach its revert; the rest refuse early
+      const gas = fn === "bindInvoice" ? 1_500_000n : 500_000n;
+      const { hash, receipt } = await send(`${label} (refused)`, role, target, abi, fn, args, { gas });
       assert.equal(receipt.status, "reverted");
       ok(`${label}: refused with ${errorName}`, `tx ${link(hash)}`);
     } else ok(`${label}: refused with ${errorName}`);
@@ -72,18 +75,20 @@ async function expectRevert(label, role, target, abi, fn, args, errorName, recor
 const typedDomain = { name: "KhataAttesters", version: "1", chainId: 1874, verifyingContract: A.attesters.address };
 
 async function ensureUsdt(to, amount) {
-  const have = await bal(to);
-  if (have >= amount) return;
-  const need = amount - have;
-  for (const [role, w] of [["OWNER", { client: ownerClient, account: owner }], ...Object.entries(W)]) {
-    if (w.account.address === to) continue;
-    if ((await bal(w.account.address)) >= need) {
-      const { hash } = await sendOk(`top up ${u(need)} USDT`, role, USDT, usdtAbi, "transfer", [to, need]);
-      console.log(`      (moved ${u(need)} USDT to ${to} from ${role}, tx ${hash})`);
-      return;
-    }
+  let need = amount - (await bal(to));
+  if (need <= 0n) return;
+  const sources = [["OWNER", { client: ownerClient, account: owner }], ...Object.entries(W)].filter(([, w]) => w.account.address !== to);
+  const funded = await Promise.all(sources.map(async ([role, w]) => [role, await bal(w.account.address)]));
+  funded.sort((x, y) => (x[1] > y[1] ? -1 : 1));
+  for (const [role, have] of funded) {
+    if (need <= 0n) break;
+    const part = have < need ? have : need;
+    if (part === 0n) continue;
+    const { hash } = await sendOk(`move ${u(part)} USDT`, role, USDT, usdtAbi, "transfer", [to, part]);
+    console.log(`      (moved ${u(part)} USDT to ${to} from ${role}, tx ${hash})`);
+    need -= part;
   }
-  throw new Error(`no demo wallet holds ${u(need)} USDT to top up ${to}`);
+  if (need > 0n) throw new Error(`the demo wallets together lack ${u(need)} USDT for ${to}`);
 }
 
 async function signCredential(subject, validUntil, tier, credId) {
@@ -124,10 +129,10 @@ assert.equal(coolOff, s2.coolOffSeconds);
 ok("system is deployed and wired", `cool-off ${coolOff}s (live demo value; unit tests cover 24 h)`);
 
 // ---- 0. seller wallet binding (anti QR squatting) ----
-const gstinHash = (await import("viem")).keccak256((await import("viem")).toHex(SELLER_GSTIN));
-{
-  const cur = await publicClient.readContract({ ...A.registry, functionName: "sellers", args: [gstinHash] });
-  const [wallet0, validUntil0, version0] = cur;
+import { keccak256, toHex } from "viem";
+async function ensureSeller(gstin) {
+  const gstinHash = keccak256(toHex(gstin));
+  const [wallet0, validUntil0, version0] = await publicClient.readContract({ ...A.registry, functionName: "sellers", args: [gstinHash] });
   const now = await chainNow();
   if (getAddress(wallet0) !== W.SUPPLIER.account.address || Number(validUntil0) < now + 3600) {
     const message = { gstinHash, wallet: W.SUPPLIER.account.address, validUntil: BigInt(now + 7 * 86400), version: BigInt(version0) + 1n };
@@ -138,11 +143,49 @@ const gstinHash = (await import("viem")).keccak256((await import("viem")).toHex(
         { name: "validUntil", type: "uint64" }, { name: "version", type: "uint64" }] },
       primaryType: "SellerBinding", message,
     });
-    const { hash } = await sendOk("register seller wallet", "INVESTOR", A.registry.address, A.registry.abi, "registerSeller", [message, sig]);
-    ok("attester-signed seller binding registered", `tx ${link(hash)}`);
-  } else ok("seller binding already in place");
+    const { hash } = await sendOk(`register seller wallet ${gstin}`, "INVESTOR", A.registry.address, A.registry.abi, "registerSeller", [message, sig]);
+    ok(`attester-signed seller binding registered for ${gstin}`, `tx ${link(hash)}`);
+  } else ok(`seller binding for ${gstin} already in place`);
   const [w1] = await publicClient.readContract({ ...A.registry, functionName: "sellers", args: [gstinHash] });
   assert.equal(getAddress(w1), W.SUPPLIER.account.address);
+}
+await ensureSeller(SELLER_GSTIN);
+await ensureSeller("37ARZPT4384Q1MT"); // seller of NIC's published sample invoice (labelled demo wallet for the demo)
+
+// ---- 0b. the real NIC sample, the demo-key namespace, tamper and other refusals ----
+{
+  const fx = (p) => readFileSync(join(root, "contracts/test/fixtures", p), "utf8").trim();
+  const sample = fx("nic-sample.token");
+  const collide = fx("redteam/collide-nic-irn.token");
+  const regCall = (fn, args) => publicClient.readContract({ ...A.registry, functionName: fn, args });
+
+  // a demo-key token carrying the NIC sample's IRN must not burn the real invoice
+  const c = await regCall("inspect", [collide]);
+  assert.equal(c.keyIsDemo, true);
+  if (!c.alreadyBound) await sendOk("bind demo-key token carrying the NIC IRN", "SUPPLIER", A.registry.address, A.registry.abi, "bindInvoice", [collide]);
+  const real = await regCall("inspect", [sample]);
+  assert.equal(real.signatureValid, true, "NIC's own signature verifies on-chain");
+  assert.equal(real.keyIsDemo, false);
+  assert.equal(real.invoice.docNo, "Test-00df1");
+  assert.notEqual(real.nullifier, c.nullifier, "demo and government nullifiers are separate");
+  ok("NIC's sample signature verifies on-chain against NIC's key (eth_call)", `IRN ${real.invoice.irn}`);
+
+  await expectRevert("a QR holder who is not the seller wallet binds the NIC sample", "INVESTOR", A.registry.address, A.registry.abi, "bindInvoice", [sample], "NotSellerWallet");
+  if (!real.alreadyBound) {
+    const { hash } = await sendOk("bind NIC sample", "SUPPLIER", A.registry.address, A.registry.abi, "bindInvoice", [sample]);
+    ok("NIC sample bound by the seller wallet", `tx ${link(hash)}`);
+  }
+  await expectRevert("rescan of the NIC sample as a second financier", "SUPPLIER", A.registry.address, A.registry.abi, "bindInvoice", [sample], "IrnAlreadyFinanced");
+
+  const parts = sample.split(".");
+  const flipped = parts[1].slice(0, 40) + (parts[1][40] === "A" ? "B" : "A") + parts[1].slice(41);
+  await expectRevert("NIC sample with one byte changed", "SUPPLIER", A.registry.address, A.registry.abi, "bindInvoice", [`${parts[0]}.${flipped}.${parts[2]}`], "InvalidSignature");
+  const t = await regCall("inspect", [`${parts[0]}.${flipped}.${parts[2]}`]);
+  assert.equal(t.signatureValid, false);
+  assert.equal(t.invoice.docNo, "", "unverified data is never shown");
+  await expectRevert("padded (non-canonical) signature text", "SUPPLIER", A.registry.address, A.registry.abi, "bindInvoice", [`${sample}==`], "MalformedToken", false);
+  await expectRevert("token signed under an unregistered kid", "SUPPLIER", A.registry.address, A.registry.abi, "bindInvoice", [fx("demo-irp/demo-unknown-kid.token")], "UnknownKey", false);
+  await expectRevert("credit note", "SUPPLIER", A.registry.address, A.registry.abi, "bindInvoice", [fx("demo-irp/demo-credit-note.token")], "InvalidField", false);
 }
 
 // ---- credentials: investor (long), investor2 (short, expires mid-hold) ----
@@ -157,7 +200,7 @@ const cred2 = `0x${"22".repeat(28)}${Date.now().toString(16).padStart(8, "0")}`.
 await registerCredential("investor2 (short)", "INVESTOR2", investor2Expiry, cred2);
 assert.equal(REASON[(await eligibility(W.INVESTOR.account.address))[0]], "Eligible");
 assert.equal(REASON[(await eligibility(W.INVESTOR2.account.address))[0]], "Eligible");
-assert.equal(REASON[(await eligibility(W.DEBTOR.account.address))[0]], "NoCredential");
+assert.notEqual(REASON[(await eligibility(W.DEBTOR.account.address))[0]], "Eligible", "the debtor wallet starts without a valid credential (a previous run may have revoked one)");
 ok("credentials registered on-chain and read back as Eligible");
 
 // ---- 1. QR squatting: a holder of the QR who is not the seller wallet cannot bind ----
@@ -250,14 +293,16 @@ await waitUntil(Number(fundableAt), "cool-off over");
 
 // ---- 7. transfer rules, each a real on-chain refusal ----
 const debtorAddr = W.DEBTOR.account.address;
+// a fresh address that has never had a credential, so the "no credential" case is the same on every run
+const outsider = privateKeyToAccount(generatePrivateKey()).address;
 {
-  const [okFlag, why] = await nread("explainTransfer", [W.INVESTOR.account.address, debtorAddr, 100_000n]);
+  const [okFlag, why] = await nread("explainTransfer", [W.INVESTOR.account.address, outsider, 100_000n]);
   assert.equal(okFlag, false);
   assert.equal(why, "The receiver has no credential from an accepted attester.");
-  const r = await expectRevert("transfer to a wallet with no credential", "INVESTOR", noteAddr, noteAbi, "transfer", [debtorAddr, 100_000n], "ReceiverNotEligible");
+  const r = await expectRevert("transfer to a wallet with no credential", "INVESTOR", noteAddr, noteAbi, "transfer", [outsider, 100_000n], "ReceiverNotEligible");
   assert.equal(REASON[r.args[1]], "NoCredential");
   ok(`readable reason: "${why}"`);
-  assert.equal(await nread("balanceOf", [debtorAddr]), 0n, "nothing moved");
+  assert.equal(await nread("balanceOf", [outsider]), 0n, "nothing moved");
 }
 {
   const { hash } = await sendOk("transfer to an eligible holder", "INVESTOR", noteAddr, noteAbi, "transfer", [W.INVESTOR2.account.address, 100_000n]);

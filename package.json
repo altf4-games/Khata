@@ -7,7 +7,6 @@
   "description": "Invoice financing for small Indian suppliers, settled in USDT on Whitechain",
   "scripts": {
     "gen:demo-irp": "node scripts/gen-demo-irp.mjs",
-    "live:stage1": "node scripts/live-stage1.mjs",
     "abi": "node scripts/export-abi.mjs",
     "web:dev": "vite --config web/vite.config.ts",
     "web:build": "vite build --config web/vite.config.ts",

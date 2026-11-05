@@ -3,7 +3,7 @@ import { parseEther, formatEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { clients, loadEnv } from "./lib/chain.mjs";
 
-const plan = { ATTESTER: "0.008", SUPPLIER: "0.04", INVESTOR: "0.03", INVESTOR2: "0.012", DEBTOR: "0.015" };
+const plan = { ATTESTER: "0.01", SUPPLIER: "0.09", INVESTOR: "0.05", INVESTOR2: "0.025", DEBTOR: "0.03" };
 const env = loadEnv();
 const { publicClient, walletClient } = clients();
 
