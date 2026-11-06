@@ -15,6 +15,7 @@ contract KhataFactory {
     error NotBinder(address binder);
     error NoteExists(address note);
     error InvalidTerms();
+    error NotCurrentSellerWallet(address current);
 
     struct Terms {
         uint64 dueDate; // when the debtor owes the face value (payment terms are the seller's, not in the QR)
@@ -26,6 +27,8 @@ contract KhataFactory {
 
     uint32 public constant MAX_DISCOUNT_BPS = 5000;
     uint64 public constant MAX_GRACE = 90 days;
+    /// Invoice finance is short-dated; a due date beyond this could never be reached, and its default time could overflow.
+    uint64 public constant MAX_TENOR = 365 days;
 
     IERC20 public immutable usdt;
     KhataRegistry public immutable registry;
@@ -46,15 +49,17 @@ contract KhataFactory {
     }
 
     function createNote(bytes32 nullifier, Terms calldata t) external returns (address) {
-        (address binder,, uint128 valuePaise,, uint64 fundableAt,) = registry.bindings(nullifier);
+        (address binder,, uint128 valuePaise,, uint64 fundableAt, bytes32 gstinHash) = registry.bindings(nullifier);
         if (binder == address(0)) revert InvoiceNotBound(nullifier);
         if (msg.sender != binder) revert NotBinder(binder);
+        _requireCurrentSeller(binder, gstinHash);
         address existing = noteOf[nullifier];
         if (existing != address(0)) revert NoteExists(existing);
 
         if (
             t.discountBps > MAX_DISCOUNT_BPS || t.graceSeconds > MAX_GRACE || t.dueDate <= fundableAt
                 || t.fundingDeadline <= fundableAt || t.fundingDeadline > t.dueDate
+                || t.dueDate > block.timestamp + MAX_TENOR
         ) revert InvalidTerms();
 
         uint256 face = uint256(valuePaise) * microUsdtPerPaise;
@@ -79,5 +84,14 @@ contract KhataFactory {
         noteOf[nullifier] = address(note);
         emit NoteCreated(nullifier, address(note), binder, face, t.dueDate);
         return address(note);
+    }
+
+    /// The binder must still be the seller's authorised wallet: if the attester moved the GSTIN to a new wallet (a lost
+    /// key), or the binding lapsed, the old wallet must not raise money on invoices it bound earlier.
+    function _requireCurrentSeller(address binder, bytes32 gstinHash) private view {
+        (address current, uint64 validUntil,, address attester) = registry.sellers(gstinHash);
+        if (current != binder || validUntil <= block.timestamp || !attesters.isAttester(attester)) {
+            revert NotCurrentSellerWallet(current);
+        }
     }
 }

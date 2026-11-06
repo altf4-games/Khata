@@ -228,6 +228,21 @@ contract AttesterRegistryTest is Test {
         assertEq(tier, 1);
     }
 
+    /// Red-team 3: a credential id reused with different terms must not let a stranger swap in the weaker copy.
+    function test_aStrangerCannotSwapInADifferentCredentialUnderTheSameId() public {
+        AttesterRegistry.Eligibility memory strong = _cred(investor, uint64(block.timestamp + 2 days), CRED);
+        strong.tier = 3;
+        att.register(strong, _sign(attesterPk, att.eligibilityDigest(strong)));
+        AttesterRegistry.Eligibility memory weak = _cred(investor, uint64(block.timestamp + 1 days), CRED);
+        weak.tier = 1;
+        bytes memory weakSig = _sign(attesterPk, att.eligibilityDigest(weak));
+        vm.prank(stranger);
+        vm.expectRevert(AttesterRegistry.ReplacementNeedsSubjectOrAttester.selector);
+        att.register(weak, weakSig);
+        (, uint8 tier) = att.eligibility(investor);
+        assertEq(tier, 3);
+    }
+
     function test_resubmittingTheCurrentCredentialChangesNothing() public {
         AttesterRegistry.Eligibility memory c = _register(investor, uint64(block.timestamp + 1 days), CRED);
         att.register(c, _sign(attesterPk, att.eligibilityDigest(c)));

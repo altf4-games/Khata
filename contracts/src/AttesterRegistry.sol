@@ -130,9 +130,12 @@ contract AttesterRegistry is Ownable2Step, EIP712 {
         // Replacing one needs the subject or the signing attester: a stranger holding an older, still-valid signed copy
         // (they are published on Arkiv) could otherwise downgrade the subject and burn the newer credential.
         Credential memory old = credentialOf[c.subject];
-        if (old.attester != address(0) && old.credId != c.credId) {
-            if (msg.sender != c.subject && msg.sender != signer) revert ReplacementNeedsSubjectOrAttester();
-            superseded[old.attester][old.credId] = true;
+        if (old.attester != address(0)) {
+            bool sameId = old.attester == signer && old.credId == c.credId;
+            bool identical = sameId && old.tier == c.tier && old.jurisdiction == c.jurisdiction && old.validUntil == c.validUntil;
+            // resubmitting exactly the current credential is harmless; anything else replaces it and needs the subject or attester
+            if (!identical && msg.sender != c.subject && msg.sender != signer) revert ReplacementNeedsSubjectOrAttester();
+            if (!sameId) superseded[old.attester][old.credId] = true;
         }
         credentialOf[c.subject] = Credential(signer, c.tier, c.jurisdiction, c.validUntil, c.credId);
         emit CredentialRegistered(c.subject, signer, c.credId, c.validUntil);

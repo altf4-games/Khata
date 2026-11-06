@@ -520,5 +520,16 @@ contract KhataRegistryTest is Test {
         assertEq(gh, NIC_SELLER);
         assertEq(reg.coolOff(), COOL_OFF);
     }
+
+    /// Red-team 3: the verification panel must not call a seller wallet allowed when bindInvoice would refuse it.
+    function test_inspectDoesNotOfferASellerWalletWhoseBindingExpired() public {
+        _addDemo();
+        string memory token = _demo("demo-02");
+        assertTrue(reg.inspect(token).sellerWallet != address(0), "allowed while the binding is valid");
+        (, uint64 validUntil,,) = reg.sellers(DEMO_SELLER);
+        vm.warp(validUntil);
+        assertEq(reg.inspect(token).sellerWallet, address(0), "not offered once bindInvoice would refuse it");
+    }
+
 }
 

@@ -53,6 +53,19 @@
  },
  {
   "type": "function",
+  "name": "MAX_TENOR",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint64",
+    "internalType": "uint64"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
   "name": "attesters",
   "inputs": [],
   "outputs": [
@@ -232,6 +245,17 @@
   "inputs": [
    {
     "name": "binder",
+    "type": "address",
+    "internalType": "address"
+   }
+  ]
+ },
+ {
+  "type": "error",
+  "name": "NotCurrentSellerWallet",
+  "inputs": [
+   {
+    "name": "current",
     "type": "address",
     "internalType": "address"
    }

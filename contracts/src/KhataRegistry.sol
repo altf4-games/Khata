@@ -318,6 +318,7 @@ contract KhataRegistry is Ownable2Step {
         r.nullifier = k.demo ? NicInvoice.demoNullifierOf(r.invoice.irn) : NicInvoice.nullifierOf(r.invoice.irn);
         r.alreadyBound = bindings[r.nullifier].boundAt != 0;
         Seller memory sl = sellers[keccak256(bytes(r.invoice.sellerGstin))];
-        r.sellerWallet = attesters.isAttester(sl.attester) ? sl.wallet : address(0);
+        // the same rules bindInvoice applies: an accepted attester and a binding that has not lapsed
+        r.sellerWallet = attesters.isAttester(sl.attester) && sl.validUntil > block.timestamp ? sl.wallet : address(0);
     }
 }

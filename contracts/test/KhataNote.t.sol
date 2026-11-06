@@ -205,6 +205,55 @@ contract KhataFactoryTest is KhataNoteBase {
         factory.createNote(n2, t);
     }
 
+    /// Red-team 3: a due date far in the future makes a note that can never settle, and default maths overflow near uint64 max.
+    function test_aDueDateBeyondTheMaximumTenorIsRefused() public {
+        vm.prank(seller);
+        bytes32 n2 = reg.bindInvoice(vm.readFile("contracts/test/fixtures/demo-irp/demo-02.token"));
+        KhataFactory.Terms memory t = _terms(1);
+        t.dueDate = uint64(block.timestamp + factory.MAX_TENOR() + 1);
+        vm.prank(seller);
+        vm.expectRevert(KhataFactory.InvalidTerms.selector);
+        factory.createNote(n2, t);
+
+        t.dueDate = type(uint64).max;
+        vm.prank(seller);
+        vm.expectRevert(KhataFactory.InvalidTerms.selector);
+        factory.createNote(n2, t);
+
+        t.dueDate = uint64(block.timestamp + factory.MAX_TENOR());
+        vm.prank(seller);
+        factory.createNote(n2, t);
+    }
+
+    /// Red-team 3: once an attester moves a GSTIN to a new wallet (say the old key leaked), the old wallet cannot
+    /// create notes, and so cannot collect investors' USDT, for invoices it bound before.
+    function test_aSellerWalletThatWasReplacedCannotCreateNotes() public {
+        vm.prank(seller);
+        bytes32 n2 = reg.bindInvoice(vm.readFile("contracts/test/fixtures/demo-irp/demo-02.token"));
+        address fresh = makeAddr("fresh-seller-wallet");
+        AttesterRegistry.SellerBinding memory b = AttesterRegistry.SellerBinding({
+            gstinHash: keccak256("27DEMOS1234A1Z5"), wallet: fresh, validUntil: uint64(block.timestamp + 365 days), version: 2
+        });
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTER_PK, att.sellerBindingDigest(b));
+        reg.registerSeller(b, abi.encodePacked(r, s, v));
+
+        vm.prank(seller);
+        vm.expectRevert(abi.encodeWithSelector(KhataFactory.NotCurrentSellerWallet.selector, fresh));
+        factory.createNote(n2, _terms(1));
+    }
+
+    function test_aSellerWhoseBindingExpiredCannotCreateNotes() public {
+        vm.prank(seller);
+        bytes32 n2 = reg.bindInvoice(vm.readFile("contracts/test/fixtures/demo-irp/demo-02.token"));
+        vm.warp(block.timestamp + 366 days);
+        KhataFactory.Terms memory t = _terms(1);
+        t.dueDate = uint64(block.timestamp + 60 days);
+        t.fundingDeadline = uint64(block.timestamp + 30 days);
+        vm.prank(seller);
+        vm.expectRevert(abi.encodeWithSelector(KhataFactory.NotCurrentSellerWallet.selector, seller));
+        factory.createNote(n2, t);
+    }
+
     function test_faceValueUsesTheFactoryRate() public {
         KhataFactory f2 = new KhataFactory(usdt, reg, att, 113);
         vm.prank(seller);
