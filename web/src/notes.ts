@@ -121,11 +121,7 @@ export function usdt(v: bigint): string {
   const frac = (v % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "").padEnd(2, "0");
   return `${whole.toLocaleString("en-IN")}.${frac}`;
 }
-export function parseUsdt(text: string): bigint | undefined {
-  const m = text.trim().match(/^(\d+)(?:\.(\d{1,6}))?$/);
-  if (!m) return undefined;
-  return BigInt(m[1]) * 1_000_000n + BigInt((m[2] ?? "").padEnd(6, "0") || "0");
-}
+export { parseUsdt } from "./amount";
 export function when(ts: number): string {
   return new Date(ts * 1000).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }

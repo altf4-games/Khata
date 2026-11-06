@@ -10,6 +10,7 @@ import { activeWallet, holdKey, refresh, refreshArkiv, rerender, run, store, typ
 import { explainTransfer, loadTimeline, nowChain, parseUsdt, quote, span, usdt, when, type NoteInfo } from "./notes";
 import { nameOf, walletsFor, type DemoWallet, type Role } from "./wallets";
 import { send } from "./tx";
+import { buyAmount, buyDefault } from "./amount";
 import { txLink } from "./outcome";
 import { wholeIn } from "./queue";
 import { closeListing, heartbeatLine, listingControl } from "./arkivViews";
@@ -152,13 +153,12 @@ function amountField(n: NoteInfo, key: string, def: string): HTMLElement {
 function fundPanel(n: NoteInfo, w: DemoWallet, key: string): HTMLElement {
   const wrap = el("div", { class: "panel" }, el("h4", {}, "Buy notes"));
   const open = nowEst() >= n.fundableAt;
-  const max = n.available < 1_000_000n ? n.available : 1_000_000n;
-  wrap.append(amountField(n, key, usdt(max).replace(/\.00$/, "")));
+  wrap.append(amountField(n, key, buyDefault(n.available)));
   const price = el("p", { class: "foot", id: `quote-${n.address}` });
   let asked = 0; // replies over Tor can arrive out of order; only the newest question's answer is shown
   const upd = async () => {
     const mine = ++asked;
-    const a = parseUsdt(val(`${key}:amt`, ""));
+    const a = buyAmount(store.form[`${key}:amt`], n.available);
     if (!a || a === 0n) { price.textContent = "Enter an amount to see the price."; return; }
     try {
       const p = await quote(n.address, a);
@@ -167,7 +167,7 @@ function fundPanel(n: NoteInfo, w: DemoWallet, key: string): HTMLElement {
   };
   void upd();
   wrap.querySelector("input")!.addEventListener("input", () => void upd());
-  const amt = () => parseUsdt(val(`${key}:amt`, ""));
+  const amt = () => buyAmount(store.form[`${key}:amt`], n.available);
   const guard = (f: (a: bigint) => Promise<unknown>) => () => {
     const a = amt();
     if (!a) { store.msgs[key] = { kind: "bad", title: "Enter an amount", detail: "Use a number such as 1 or 0.5." }; return rerender(); }

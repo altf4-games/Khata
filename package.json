@@ -13,7 +13,7 @@
     "web:build": "vite build --config web/vite.config.ts",
     "web:preview": "vite preview --config web/vite.config.ts",
     "live:stage2": "node scripts/live-stage2.mjs",
-    "test:web": "playwright test layout verdict landing signer no-keys pick traffic evidence pin retry camera zk-inputs params outcome errors.spec arkiv-verify wait.spec token.spec queue.spec lender evidence-merge eip712-golden privacy selftest heartbeat timeline",
+    "test:web": "playwright test layout verdict landing signer no-keys pick traffic evidence pin retry camera zk-inputs params outcome errors.spec arkiv-verify wait.spec token.spec queue.spec lender evidence-merge eip712-golden privacy selftest heartbeat timeline amount",
     "second-issuer": "tsx scripts/second-issuer.ts",
     "test:arkiv": "playwright test arkiv",
     "test:web:live": "playwright test lifecycle",

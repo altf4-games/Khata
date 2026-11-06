@@ -78,6 +78,8 @@ test("full lifecycle through the four role views on the real chain", async ({ pa
   await expect(page.getByText("Listed on Arkiv").first()).toBeVisible({ timeout: 60_000 });
   const card = page.locator(".note", { hasText: noteName }).first();
   await expect(card.getByText("Open for funding")).toBeVisible({ timeout: 150_000 });
+  // an untouched Buy box prices the amount it shows (a trial run found it showed "1" and still answered "Enter an amount")
+  await expect(card.locator("[id^='quote-']").first()).toContainText("You pay", { timeout: 60_000 });
   await card.getByLabel("Amount of notes").first().fill("0.5");
   await card.getByRole("button", { name: "Buy with one signature" }).click();
   await expect(card.getByText("Funded in one transaction")).toBeVisible({ timeout: 120_000 });
