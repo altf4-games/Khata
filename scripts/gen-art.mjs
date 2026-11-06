@@ -98,6 +98,8 @@ function lamp(x, base) {
 // ---------- the skyline cluster (1000 x 500) ----------
 const W = 1000, H = 500, G = 440;
 const sky = () => {
+  // a strip of grass behind every building, so each one stands on the ground instead of hovering above it
+  add(`<rect x="-1800" y="${G - 6}" width="4600" height="80" fill="${C.olive}"/>`);
   // far pale towers
   add(`<g opacity=".95">`);
   for (let x = -10; x < W; ) { const w = 22 + r() * 36, h = 60 + r() * 150; add(`<rect x="${f(x)}" y="${f(G - h)}" width="${f(w)}" height="${f(h)}" fill="${C.lav}" stroke="${C.lavDk}" stroke-width="2"/>`); for (let yy = G - h + 14; yy < G - 12; yy += 16) for (let xx = x + 6; xx < x + w - 6; xx += 11) if (r() > 0.55) add(`<rect x="${f(xx)}" y="${f(yy)}" width="4" height="7" fill="${C.lavDk}"/>`); x += w + 3 + r() * 8; }

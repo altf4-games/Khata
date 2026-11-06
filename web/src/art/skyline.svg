@@ -6,6 +6,7 @@
 <pattern id="hatch2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-32)"><line x1="0" y1="0" x2="0" y2="5" stroke="#3b2a3d" stroke-width="1" opacity=".3"/></pattern>
 </defs>
 <g filter="url(#paper)"><g filter="url(#wob)">
+<rect x="-1800" y="434" width="4600" height="80" fill="#8a9246"/>
 <g opacity=".95">
 <rect x="-10" y="369.8" width="25.3" height="70.2" fill="#d3c8e2" stroke="#bcaed3" stroke-width="2"/>
 <rect x="-4" y="383.8" width="4" height="7" fill="#bcaed3"/>
