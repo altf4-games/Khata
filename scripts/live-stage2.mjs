@@ -412,3 +412,8 @@ await expectRevert("settle twice", "DEBTOR", noteAddr, noteAbi, "settle", [], "W
 }
 console.log(`\n${checks} live checks passed`);
 writeFileSync(join(root, "logs/live-stage2-txs.json"), JSON.stringify(txs, null, 2));
+// The same transactions, kept in the repo so the app's evidence page and the README can link every one of them.
+writeFileSync(
+  join(root, "deployments/evidence.json"),
+  JSON.stringify({ chainId: dep.chainId, KhataRegistry: s2.KhataRegistry, KhataFactory: s2.KhataFactory, generatedBy: "npm run live:stage2", entries: txs.map(({ label, hash, status }) => ({ label, hash, status })) }, null, 2),
+);

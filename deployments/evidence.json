@@ -1,0 +1,168 @@
+{
+  "chainId": 1874,
+  "KhataRegistry": "0xE25Db4Af7f75fb5Aa7199690f9e2FFF6E9A29E03",
+  "KhataFactory": "0x446885c6Fa8A9697dDE75db6A3Df28fF893f0Ef9",
+  "generatedBy": "npm run live:stage2",
+  "entries": [
+    {
+      "label": "a QR holder who is not the seller wallet binds the NIC sample (refused)",
+      "hash": "0x5a942a1f1c017a1c460261bd7214776ac9b44d0fd2bd0153b75602ef611980ba",
+      "status": "reverted"
+    },
+    {
+      "label": "rescan of the NIC sample as a second financier (refused)",
+      "hash": "0x0ce31436acbb46f1da4ce8a5df85929a278ed878d75c5f49153101df9283cd05",
+      "status": "reverted"
+    },
+    {
+      "label": "NIC sample with one byte changed (refused)",
+      "hash": "0xfe677c30bafd36c3da0bbb937257458fce8a6568ea351fb7ba3cfa1f435f562f",
+      "status": "reverted"
+    },
+    {
+      "label": "register credential investor",
+      "hash": "0x3f22e0f969929210b800b6f561bd61be89d8e5a0d7a98cf0d32aa24074839350",
+      "status": "success"
+    },
+    {
+      "label": "register credential investor2 (short)",
+      "hash": "0xd1aba7e606273663147e649dad81e1558f56722df6eaadfd5dc23a9b87a8268b",
+      "status": "success"
+    },
+    {
+      "label": "rival (not the seller wallet) tries to bind the QR (refused)",
+      "hash": "0x8b561751978acd868a22676b55ba6bc1e0b4cab84aba2bca860f9539da1a4790",
+      "status": "reverted"
+    },
+    {
+      "label": "bind invoice",
+      "hash": "0xc8e5ff07872166e06a49e7a0edef3fc8b90d7e3bc0af7422e135bd6391e426bb",
+      "status": "success"
+    },
+    {
+      "label": "second financing of the same invoice (refused)",
+      "hash": "0x0a17a78e4be9a202b29d1c02741940dab0dc43fa3018c52561b49c7d45da7ef9",
+      "status": "reverted"
+    },
+    {
+      "label": "create note",
+      "hash": "0x0639ec544c0e90271e7288c7f2bce2086f26879309fb9f5a0f03ab6661e94dfa",
+      "status": "success"
+    },
+    {
+      "label": "approve INVESTOR",
+      "hash": "0x542fc78e5d2f08e66804f643caa45877cf71de67f4172e056280ce391b0d533f",
+      "status": "success"
+    },
+    {
+      "label": "funding inside the cool-off (refused)",
+      "hash": "0xd7a8cc2ee10db49fb0b855060abfbf08103c169bb047e5430d8e18382e2bf7fd",
+      "status": "reverted"
+    },
+    {
+      "label": "fund 3.0 USDT of notes",
+      "hash": "0xe75bd7ef53c34744e39dce4c45b3f175fb9ef871cd89aed219a7d9f7944dc21a",
+      "status": "success"
+    },
+    {
+      "label": "fund with permit",
+      "hash": "0xee460d366ea2d5e612916aca8396bf7ccce008f2d8bc44c6dd454e7f1ccbfec3",
+      "status": "success"
+    },
+    {
+      "label": "transfer to a wallet with no credential (refused)",
+      "hash": "0x395e3f5aa56ceac4e34beafb4a5e3d9610b4d94b2dc1b1f004860501e61bbee1",
+      "status": "reverted"
+    },
+    {
+      "label": "transfer to an eligible holder",
+      "hash": "0x1d27b8f6c717834a9320aba47c71fcef73fbc91909e08774f4e512940aef6976",
+      "status": "success"
+    },
+    {
+      "label": "register credential debtor",
+      "hash": "0x6274f8fc77deb29825cea7f30b354fd64ec29daf1f38a550be587c68a1fbbde2",
+      "status": "success"
+    },
+    {
+      "label": "transfer to debtor while credentialed",
+      "hash": "0x48a3fe06332e5ed6395d84d8e9575446436b5a714393b583f53aa72b99118e70",
+      "status": "success"
+    },
+    {
+      "label": "revoke debtor credential",
+      "hash": "0xcd922a2c14228cfd1d8c6c3360ad78a8292fcd9d8f2f5cd473f763d7c5764458",
+      "status": "success"
+    },
+    {
+      "label": "transfer after the receiver's credential was revoked (refused)",
+      "hash": "0x2023606ac097f8d1abdf9e007f8be24bb73752b3b3f5578dffc0cef48b5b2f5b",
+      "status": "reverted"
+    },
+    {
+      "label": "transfer to a holder whose credential expired (refused)",
+      "hash": "0xd5144343ce7980fb80ab531e4f27d2bdd108d2778b2ea598ea24ab5442e1a3f8",
+      "status": "reverted"
+    },
+    {
+      "label": "close funding (anyone, after the deadline)",
+      "hash": "0x6a7c7dbff83df5c65013351877e9b073902f76a2d86ff54c17e0a99403a93d2c",
+      "status": "success"
+    },
+    {
+      "label": "transfer at maturity (refused)",
+      "hash": "0x4e77fdc828bdcb12207b5f250adf4a4c8a7e52ea6e791dbc9c6a1546b53ed550",
+      "status": "reverted"
+    },
+    {
+      "label": "debtor approves face value",
+      "hash": "0x6e0d55db514342b6235663ec6ebed8911c4488e83b254780e92da17a52e04ef0",
+      "status": "success"
+    },
+    {
+      "label": "settle",
+      "hash": "0x1f5e3f9efe7aaaf8b140f36c5e63910ff56ff8dee16fca0f975ddd1b3f400c36",
+      "status": "success"
+    },
+    {
+      "label": "investor redeems",
+      "hash": "0xbb4601f6db95e290a99d61f5697dd101274934bfef11869141b6d6619f5d4183",
+      "status": "success"
+    },
+    {
+      "label": "investor2 redeems with an expired credential",
+      "hash": "0x34304ec5fcce89ca1d8eb6129f54d4889e820e6e58fe46904cce752ba79d7dd1",
+      "status": "success"
+    },
+    {
+      "label": "a wallet with a revoked credential redeems",
+      "hash": "0x76949d2b0663fda408e902524304bcfbeb04cce956f870b44cfcdbafdf283863",
+      "status": "success"
+    },
+    {
+      "label": "bind second invoice",
+      "hash": "0xada36864ad3bbd42555005c528a076929e6633a492f3612300e3f1930728eb1e",
+      "status": "success"
+    },
+    {
+      "label": "create note 2",
+      "hash": "0x0dd8199146f2a7c4a46860b5264bd5203a2b231d6f53f447b11efbe09afea145",
+      "status": "success"
+    },
+    {
+      "label": "approve note 2",
+      "hash": "0xa08d594ea0c3df95aa2d8072758c2ff78b3653730f07d9f3dcbacff3c8eb26cc",
+      "status": "success"
+    },
+    {
+      "label": "fund note 2",
+      "hash": "0x317e4fb406ba1807ace9e39da5589e37e27d9ba272e1f31a671b927d6f0d1582",
+      "status": "success"
+    },
+    {
+      "label": "mark default",
+      "hash": "0xb7e3f93045a58b61eca2af9f2c33957c808a0882c9970d836f4f0c8f241bfed7",
+      "status": "success"
+    }
+  ]
+}

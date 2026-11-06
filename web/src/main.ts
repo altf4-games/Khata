@@ -18,6 +18,7 @@ import { chipText, chooseDirect, slowAfterMs, onState, onTraffic, retryAnon, sta
 import { startWatching } from "./arkivApp";
 import { refreshArkiv } from "./store";
 import { refusalFor } from "./errors";
+import { evidencePage } from "./evidence";
 import { classify, formatRupees } from "./verdict";
 import { decodeImageFile, startCamera, type CameraScan } from "./scan";
 
@@ -447,6 +448,7 @@ function footer() {
   return el("footer", { class: "footer" }, el("div", { class: "wrap" },
     el("p", { style: "margin:0" }, el("span", { class: "tag" }, "TESTNET DEMO"), " Built solo for ETHGlobal Mumbai 2026. Funds here have no value."),
     el("p", { style: "margin:0" }, "Registry contract: ", el("a", { class: "chip-link", href: addressUrl(registryAddress), target: "_blank", rel: "noopener" }, short(registryAddress, 8, 6))),
+    el("p", { style: "margin:0" }, el("a", { class: "chip-link", href: "#evidence" }, "Evidence: what the contract refused")),
     el("p", { style: "margin:0" }, "The NIC sample QR is real. Invoices marked DEMO IRP use a demo key, not a government key."),
   ));
 }
@@ -480,6 +482,7 @@ function openApp(role: Role = "supplier", token?: string) {
 
 function render() {
   const app = document.getElementById("app")!;
+  if (location.hash === "#evidence") { app.replaceChildren(roughDefs(), evidencePage(), footer()); return; }
   if (!inApp()) {
     app.replaceChildren(roughDefs(), landing({
       getToken: () => state.token,

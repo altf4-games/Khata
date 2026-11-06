@@ -342,3 +342,27 @@ main a { display: inline-flex; align-items: center; min-height: var(--tap); }
 .cta h2 { font-size: var(--fs-display); letter-spacing: -0.03em; max-width: 18ch; margin: 0 auto var(--s3); }
 .cta p { color: var(--ink-soft); font-size: var(--fs-lg); max-width: 32rem; margin: 0 auto var(--s5); }
 .cta .btn { min-height: 56px; padding: 0 var(--s6); font-size: 1.05rem; }
+
+/* ---------- evidence page ---------- */
+.ev .wrap { display: grid; gap: var(--s5); padding-block: var(--s5); }
+.ev h1 { margin: 0; }
+.ev-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.ev-row { display: grid; grid-template-columns: auto 1fr auto; gap: var(--s3); align-items: center; padding: var(--s2) 0; border-top: 1px dashed var(--line); min-width: 0; }
+.ev-row:first-child { border-top: 0; }
+.ev-mark { font-weight: 800; width: 1.4em; text-align: center; }
+.ev-row.refused .ev-mark { color: var(--red); }
+.ev-row.ok .ev-mark { color: var(--teal); }
+.ev-label { min-width: 0; overflow-wrap: anywhere; }
+.ev-label em { color: var(--ink-soft); font-style: normal; }
+.ev .btn.small { min-height: 44px; padding: 0 var(--s4); }
+.ev-scroll { overflow-x: auto; }
+.ev-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.ev-table th, .ev-table td { text-align: left; vertical-align: top; padding: var(--s3); border-top: 1px solid var(--line); }
+@media (max-width: 700px) {
+  .ev-table thead { display: none; }
+  .ev-table, .ev-table tbody, .ev-table tr, .ev-table th, .ev-table td { display: block; width: 100%; }
+  .ev-table tr { padding: var(--s3) 0; border-top: 1px solid var(--line); }
+  .ev-table th, .ev-table td { border: 0; padding: var(--s1) 0; }
+  .ev-table td:nth-of-type(1)::before { content: "Private: "; font-weight: 700; }
+  .ev-table td:nth-of-type(2)::before { content: "Still visible: "; font-weight: 700; }
+}
