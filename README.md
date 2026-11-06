@@ -107,13 +107,13 @@ To count every live Khata entity by type and writer: `npx tsx scripts/arkiv-reac
 
 ## Why Anon-RPC
 
-An RPC provider sees every read: which wallet is asking, from which IP address, about which invoice. For an investor looking at invoices that is a map of who is interested in whom. Every read of Whitechain and Arkiv in Khata goes through EF's Anon-RPC by default, so a provider cannot link a visitor's IP address to what they look at.
+An RPC provider sees every read: which wallet is asking, from which IP address, about which invoice. For an investor looking at invoices that is a map of who is interested in whom. Reads of Whitechain and Arkiv in Khata go through EF's Anon-RPC by default, so a provider cannot link a visitor's IP address to what they look at. One exception, found while recording the demo: when Tor cannot start and the page falls back to Nym, Arkiv's gateway rejects requests that arrive over Nym (HTTP 415, "Content-Type: application/json is required"), so on Nym the Arkiv reads go directly and are counted as direct. Over Tor every read of both chains goes through the route.
 
 The page lets you check this. A chip shows the share of traffic that went through the route, a log lists every read and the route it took, and a Privacy page fetches your visible IP address both directly and through the route and shows the two side by side.
 
 The honest gap: writes are not anonymized. A signed transaction is broadcast directly to the Whitechain RPC and counted as such. Two things also sit outside the route and are listed in the traffic tooltip: one read of the worker specifier from Ethereum mainnet (publicnode), and the harness's WASM file from `cdn.jsdelivr.net`. Neither carries user data, but both see the visitor's IP address. Tor's cold start takes 8 to 17 seconds, and EF's demo gateway says it may disappear at any time. I did not self-host a gateway.
 
-I left some traffic out of the route on purpose. Signed transactions go directly because the RPC has to receive them from the sender, and the mainnet read and the WASM file are needed before the route can exist. Everything else, including every read of both chains, goes through the route, and the chip shows the share.
+I left some traffic out of the route on purpose. Signed transactions go directly because the RPC has to receive them from the sender, and the mainnet read and the WASM file are needed before the route can exist. Everything else goes through the route: all reads of both chains over Tor, and the Whitechain reads over Nym. The chip shows the share, and on Nym it is below 100% because of the Arkiv exception above.
 
 What it would take to ship: a self-hosted gateway in place of EF's demo gateway, and users' own wallets in place of the demo wallets. Neither is done.
 

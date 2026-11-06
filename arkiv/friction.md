@@ -77,6 +77,22 @@ A credential with `validUntil` 30 seconds out was queryable and then gone within
 
 Issue #128 reports mixed-case attribute names rejected. On Rabdi, queries with `Foo`, `FOO_Bar`, `foo.bar` and `foo-bar` are accepted, which matches the schema docs ("case-sensitive, mixed case fine"), and an existing entity carries the attribute `contentType`. Leading underscores and non-ASCII characters are rejected ("unexpected character"), and names over 32 bytes are rejected ("attribute names are limited to 32 bytes"). I did not write a mixed-case attribute to test the create side, so the issue may still be Tiramisu-only.
 
+## 11. A request with no content-type gets HTTP 415, and that broke Arkiv reads over the Nym route
+
+Expected: the gateway treats a JSON-RPC POST like Whitechain's node does, which answers it with or without a `content-type` header.
+
+Happened: Arkiv's gateway answers `415` with the body `Supplied content type is not allowed. Content-Type: application/json is required` when the header is missing. Whitechain's RPC answers the same request. In the app, on the Nym fallback every Arkiv read failed with that message (the same read answers 200 over Tor and directly), so the marketplace and the credential panel never loaded. I could not see inside the Nym route; my guess is that it does not send the header to this host, because rewriting the headers in the page (one lower-case `content-type: application/json`) changed nothing.
+
+```bash
+U=https://rpc.rabdi.db-chain.testnet.arkiv.network
+D='{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+curl -s -X POST -H 'content-type:' -d "$D" $U                      # Supplied content type is not allowed. Content-Type: application/json is required
+curl -s -X POST -H 'content-type: application/json' -d "$D" $U     # {"jsonrpc":"2.0","id":1,"result":"0x..."}
+curl -s -X POST -H 'content-type:' -d "$D" https://rpc.testnet.whitechain.io   # answers, no header needed
+```
+
+What I did: on Nym the app reads Arkiv directly, counts those reads as direct, and the status chip shows the lower share (`web/src/route.ts`). Over Tor nothing changes. I have not filed this upstream: I can't say whether the fault is the gateway being strict or the Nym route dropping the header, and I would need a minimal repro that shows which.
+
 ## What worked well
 
 - Writes and reads worked on the first try once the faucet had funded the wallets. A write costs about 0.0001 tGLM, so 1 tGLM from the faucet is thousands of writes.
@@ -84,7 +100,7 @@ Issue #128 reports mixed-case attribute names rejected. On Rabdi, queries with `
 - `defineSchema` with typed columns, and a `where()` checked against the schema, caught mistakes before running.
 - `watchEntityEvents` delivered a new entity as an event without polling, and the app uses it to refresh the credentials and marketplace panels.
 - Expiry works as documented. I used it for credentials, listings and a heartbeat that disappears when the attester stops.
-- Reads work through Anon-RPC: `http(url, { fetchFn: worker.fetch })` is enough for the SDK to send its queries through Tor or Nym.
+- Reads work through Anon-RPC over Tor: `http(url, { fetchFn: worker.fetch })` is enough for the SDK to send its queries through the route. Over the Nym route the gateway answered 415 (item 11).
 
 ## What I'd add
 

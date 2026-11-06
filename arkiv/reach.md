@@ -20,16 +20,16 @@ To check the data without the app, run the query in `schema.md`, or count everyt
 npx tsx scripts/arkiv-reach.ts
 ```
 
-The count I got on 6 November 2026 at 21:07 IST:
+The count I got on 7 November 2026 at 03:48 IST (the script prints 2026-11-06T22:18:22Z):
 
 | Entity type | Live now | Written by |
 |---|---|---|
-| khata.credential | 1 | attester (demo) |
+| khata.credential | 2 | attester (demo) |
 | khata.revocation | 1 | attester (demo) |
-| khata.listing | 2 | supplier (demo) |
+| khata.listing | 3 | supplier (demo) |
 | khata.heartbeat | 0 | |
 
-The numbers are small because credentials, revocations and heartbeats expire, so the live count is whatever was written recently, not a running total. The two live listings are from my own test runs.
+The numbers are small because credentials, revocations and heartbeats expire, so the live count is whatever was written recently, not a running total. The three live listings are from my own test and demo-recording runs.
 
 ## Will I keep building it after Mumbai?
 
