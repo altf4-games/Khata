@@ -102,6 +102,30 @@
  },
  {
   "type": "function",
+  "name": "bindInvoiceZk",
+  "inputs": [
+   {
+    "name": "proof",
+    "type": "bytes",
+    "internalType": "bytes"
+   },
+   {
+    "name": "publicInputs",
+    "type": "bytes32[]",
+    "internalType": "bytes32[]"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "nullifier",
+    "type": "bytes32",
+    "internalType": "bytes32"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
   "name": "bindings",
   "inputs": [
    {
@@ -440,6 +464,19 @@
  },
  {
   "type": "function",
+  "name": "setZkVerifier",
+  "inputs": [
+   {
+    "name": "verifier",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
   "name": "transferOwnership",
   "inputs": [
    {
@@ -450,6 +487,19 @@
   ],
   "outputs": [],
   "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "zkVerifier",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract IProofVerifier"
+   }
+  ],
+  "stateMutability": "view"
  },
  {
   "type": "event",
@@ -603,6 +653,16 @@
  },
  {
   "type": "error",
+  "name": "BadProofInputs",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "DemoFlagMismatch",
+  "inputs": []
+ },
+ {
+  "type": "error",
   "name": "DuplicateKey",
   "inputs": []
  },
@@ -620,6 +680,11 @@
  {
   "type": "error",
   "name": "InvalidKey",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "InvalidProof",
   "inputs": []
  },
  {
@@ -731,6 +796,17 @@
  },
  {
   "type": "error",
+  "name": "ProofNotForCaller",
+  "inputs": [
+   {
+    "name": "expected",
+    "type": "address",
+    "internalType": "address"
+   }
+  ]
+ },
+ {
+  "type": "error",
   "name": "SellerBindingExpired",
   "inputs": [
    {
@@ -780,6 +856,11 @@
  },
  {
   "type": "error",
+  "name": "UnknownZkKey",
+  "inputs": []
+ },
+ {
+  "type": "error",
   "name": "UnsupportedAlgorithm",
   "inputs": []
  },
@@ -797,6 +878,16 @@
  {
   "type": "error",
   "name": "WrongIssuer",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "ZkKeyRetired",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "ZkNotEnabled",
   "inputs": []
  }
 ]

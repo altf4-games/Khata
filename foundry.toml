@@ -13,3 +13,6 @@ remappings = [
   "forge-std/=lib/forge-std/src/",
 ]
 fs_permissions = [{ access = "read", path = "./contracts/test/fixtures" }]
+# The generated proof verifier is just over the contract size limit at 200 optimizer runs, so it alone is built for size.
+additional_compiler_profiles = [{ name = "size", optimizer_runs = 1 }]
+compilation_restrictions = [{ paths = "contracts/src/zk/HonkVerifier.sol", optimizer_runs = 1 }]

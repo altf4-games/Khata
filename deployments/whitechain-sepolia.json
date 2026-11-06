@@ -17,20 +17,27 @@
     "coolOffSeconds": 60,
     "microUsdtPerPaise": 1,
     "note": "Live demo uses a 60 s cool-off so the lifecycle can be shown in minutes. Unit tests cover 24 h.",
-    "AttesterRegistry": "0x398f09E88Ff64a5D766cf8D803E3b7F3773eb027",
+    "AttesterRegistry": "0x9de708fBc53d7305567532DF172A6a7935A6574F",
     "deployTxs": {
-      "AttesterRegistry": "0xc0ecd8dcd66892e26f73521f6f554e42f148d14670aafedd8ba1f408c2532caf",
-      "KhataRegistry": "0x0c03d3f737122d013e4cf31d94649aa912ba5e31c69a5c1f6164c8b652cca21b",
-      "KhataFactory": "0x4cf9531e13598c45cae1d06e0ba088d3298f6072084525a4faa85120dce85a1c"
+      "AttesterRegistry": "0xc33ce816ec94ca673d2ea0bb34eec1e63dd069986b238fb292c8b7acaf1ddf25",
+      "KhataRegistry": "0x5ef88da281faa29767a7ff6f84c64ab6416fa1d6d62b75fce327de50a5bb01f2",
+      "KhataFactory": "0xa3e3322de204e7bd4db24dbef4f468cce5db3ac1e54ba1cf9eefbcc72eb9637d",
+      "HonkVerifier": "0x189b69e9b408d3ec9b8810b026375ed6bb014d187ec821d04d161976be9eddd4"
     },
-    "KhataRegistry": "0xE25Db4Af7f75fb5Aa7199690f9e2FFF6E9A29E03",
-    "KhataFactory": "0x446885c6Fa8A9697dDE75db6A3Df28fF893f0Ef9"
+    "KhataRegistry": "0x32a50e36D6a11742A86Ca5bA0c96e330F67F2f34",
+    "KhataFactory": "0x4cCd770d692d3d72c5B7814bec0A70c17B225921",
+    "HonkVerifier": "0xe950C0ae77B4eA346a52224fd6FF321458f226C6"
   },
   "superseded_stage2": [
     {
       "AttesterRegistry": "0x43a2721542627b57fDa50596fd60725F498A08bA",
       "KhataRegistry": "0x5D81284bDD6f691e45e7Aa35A83900B2B05177e8",
       "KhataFactory": "0x73c026Fff2515AC3319EaC1400707750cff1E22a"
+    },
+    {
+      "AttesterRegistry": "0x398f09E88Ff64a5D766cf8D803E3b7F3773eb027",
+      "KhataRegistry": "0xE25Db4Af7f75fb5Aa7199690f9e2FFF6E9A29E03",
+      "KhataFactory": "0x446885c6Fa8A9697dDE75db6A3Df28fF893f0Ef9"
     }
   ]
 }

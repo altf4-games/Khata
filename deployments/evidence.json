@@ -1,167 +1,172 @@
 {
   "chainId": 1874,
-  "KhataRegistry": "0xE25Db4Af7f75fb5Aa7199690f9e2FFF6E9A29E03",
-  "KhataFactory": "0x446885c6Fa8A9697dDE75db6A3Df28fF893f0Ef9",
+  "KhataRegistry": "0x32a50e36D6a11742A86Ca5bA0c96e330F67F2f34",
+  "KhataFactory": "0x4cCd770d692d3d72c5B7814bec0A70c17B225921",
   "generatedBy": "npm run live:stage2",
   "entries": [
     {
       "label": "a QR holder who is not the seller wallet binds the NIC sample (refused)",
-      "hash": "0x5a942a1f1c017a1c460261bd7214776ac9b44d0fd2bd0153b75602ef611980ba",
+      "hash": "0x7373018c5d03ae295d7ef5f86c8d68d493c0bc0d70e564a06e49e61bec35af9f",
       "status": "reverted"
     },
     {
       "label": "rescan of the NIC sample as a second financier (refused)",
-      "hash": "0x0ce31436acbb46f1da4ce8a5df85929a278ed878d75c5f49153101df9283cd05",
+      "hash": "0x77a429aa9325bdf71cbc8c2747b3bbe6ecae8bb3a32e5fe0436c3cd282e95f48",
       "status": "reverted"
     },
     {
       "label": "NIC sample with one byte changed (refused)",
-      "hash": "0xfe677c30bafd36c3da0bbb937257458fce8a6568ea351fb7ba3cfa1f435f562f",
+      "hash": "0xb458cc36c3df104515def6cffc1a5da926a2a2847dd9ba6e0ae01e484951bb10",
       "status": "reverted"
     },
     {
+      "label": "move 4.15 USDT",
+      "hash": "0x8cfd5d6ba3a074a58f5816b69a22edf6fdd5c95c0f08db317b5b69329241eab9",
+      "status": "success"
+    },
+    {
       "label": "register credential investor",
-      "hash": "0x3f22e0f969929210b800b6f561bd61be89d8e5a0d7a98cf0d32aa24074839350",
+      "hash": "0x2e569d397dc922a2371f211f7348ae0d4761b5c1506b78d2ae8dd3ecad1acd8c",
       "status": "success"
     },
     {
       "label": "register credential investor2 (short)",
-      "hash": "0xd1aba7e606273663147e649dad81e1558f56722df6eaadfd5dc23a9b87a8268b",
+      "hash": "0xf3a27da924ef061aba08cecc721f5b56a54e6833b6d90a1d07d365148cc34bd8",
       "status": "success"
     },
     {
       "label": "rival (not the seller wallet) tries to bind the QR (refused)",
-      "hash": "0x8b561751978acd868a22676b55ba6bc1e0b4cab84aba2bca860f9539da1a4790",
+      "hash": "0x253e7d16013a6d0a24a35602e33f0c0317439fe6297ed84a5755a641d3c3ffd0",
       "status": "reverted"
     },
     {
       "label": "bind invoice",
-      "hash": "0xc8e5ff07872166e06a49e7a0edef3fc8b90d7e3bc0af7422e135bd6391e426bb",
+      "hash": "0xa6dfae6d94b09e31f9aad674fb09ab8d08ae08e5cd63d27b81d59ba272b6c032",
       "status": "success"
     },
     {
       "label": "second financing of the same invoice (refused)",
-      "hash": "0x0a17a78e4be9a202b29d1c02741940dab0dc43fa3018c52561b49c7d45da7ef9",
+      "hash": "0xd6560b022230898ac8d269e7ce961efb08f4dde0297ab53af2c55efa09f3ef5a",
       "status": "reverted"
     },
     {
       "label": "create note",
-      "hash": "0x0639ec544c0e90271e7288c7f2bce2086f26879309fb9f5a0f03ab6661e94dfa",
+      "hash": "0x28443bb1f13d3f184a0f66043984b2dc47f21abd7da7301d244949e6300718af",
       "status": "success"
     },
     {
       "label": "approve INVESTOR",
-      "hash": "0x542fc78e5d2f08e66804f643caa45877cf71de67f4172e056280ce391b0d533f",
+      "hash": "0xa0c0166dbde64cef7bd80786fe0e744845e2557a183b2c3bdb42054b45beb5db",
       "status": "success"
     },
     {
       "label": "funding inside the cool-off (refused)",
-      "hash": "0xd7a8cc2ee10db49fb0b855060abfbf08103c169bb047e5430d8e18382e2bf7fd",
+      "hash": "0x803762f9bbef67902ee12ba0ec08bf68970684e676c5d5e673848e3f2152e4ba",
       "status": "reverted"
     },
     {
       "label": "fund 3.0 USDT of notes",
-      "hash": "0xe75bd7ef53c34744e39dce4c45b3f175fb9ef871cd89aed219a7d9f7944dc21a",
+      "hash": "0x930c4316f62ef024514f8fc4ca63b2610387592aa7068b603c4d789275b39b73",
       "status": "success"
     },
     {
       "label": "fund with permit",
-      "hash": "0xee460d366ea2d5e612916aca8396bf7ccce008f2d8bc44c6dd454e7f1ccbfec3",
+      "hash": "0xae275b4a0b8a5c6d7375a475bade2e6429b1dce8dab5a1a8d985ca856462bf45",
       "status": "success"
     },
     {
       "label": "transfer to a wallet with no credential (refused)",
-      "hash": "0x395e3f5aa56ceac4e34beafb4a5e3d9610b4d94b2dc1b1f004860501e61bbee1",
+      "hash": "0x4df31829bbfededa74e74d553618ee06ef82cc3b20d7f87ebe02f855ba38809b",
       "status": "reverted"
     },
     {
       "label": "transfer to an eligible holder",
-      "hash": "0x1d27b8f6c717834a9320aba47c71fcef73fbc91909e08774f4e512940aef6976",
+      "hash": "0xdcd5cfe322898444c7cd4ea382b1668bc268871a46f4b3a323bae09a592f4c82",
       "status": "success"
     },
     {
       "label": "register credential debtor",
-      "hash": "0x6274f8fc77deb29825cea7f30b354fd64ec29daf1f38a550be587c68a1fbbde2",
+      "hash": "0x25ae08d1934a6c2f478905bc51209ec60052df6a13387d9f52562b15d5ebb18d",
       "status": "success"
     },
     {
       "label": "transfer to debtor while credentialed",
-      "hash": "0x48a3fe06332e5ed6395d84d8e9575446436b5a714393b583f53aa72b99118e70",
+      "hash": "0x6d81bc2a02746581c1cc497c976967c0e5c2dc8d98d16a70006393d13badca0a",
       "status": "success"
     },
     {
       "label": "revoke debtor credential",
-      "hash": "0xcd922a2c14228cfd1d8c6c3360ad78a8292fcd9d8f2f5cd473f763d7c5764458",
+      "hash": "0x64a8bedc4a35da1eedc509c244da916e77a35c6e8cad22719ee99e6173950167",
       "status": "success"
     },
     {
       "label": "transfer after the receiver's credential was revoked (refused)",
-      "hash": "0x2023606ac097f8d1abdf9e007f8be24bb73752b3b3f5578dffc0cef48b5b2f5b",
+      "hash": "0x203ebe9106b491c5c96beb6a3949ca8f63f8537ce016885cf67c6dc239e80333",
       "status": "reverted"
     },
     {
       "label": "transfer to a holder whose credential expired (refused)",
-      "hash": "0xd5144343ce7980fb80ab531e4f27d2bdd108d2778b2ea598ea24ab5442e1a3f8",
+      "hash": "0x38143c879ba14a7958993b4868570646938c035d40285bbe22628f2fde45e0b7",
       "status": "reverted"
     },
     {
       "label": "close funding (anyone, after the deadline)",
-      "hash": "0x6a7c7dbff83df5c65013351877e9b073902f76a2d86ff54c17e0a99403a93d2c",
+      "hash": "0x5689dd3f8c2f82397845a2be469b7c1f8a23dc3c84b5066875cfb1e8c589bfd0",
       "status": "success"
     },
     {
       "label": "transfer at maturity (refused)",
-      "hash": "0x4e77fdc828bdcb12207b5f250adf4a4c8a7e52ea6e791dbc9c6a1546b53ed550",
+      "hash": "0x2fad0a7bb0e053b8cb97ceb5009c1e3539ff651dda43d88fd0768b304c076aa3",
       "status": "reverted"
     },
     {
       "label": "debtor approves face value",
-      "hash": "0x6e0d55db514342b6235663ec6ebed8911c4488e83b254780e92da17a52e04ef0",
+      "hash": "0x7d915de0464f8306216d09a1bf70a1258fcacafd117da360dcfde1d37f9672ad",
       "status": "success"
     },
     {
       "label": "settle",
-      "hash": "0x1f5e3f9efe7aaaf8b140f36c5e63910ff56ff8dee16fca0f975ddd1b3f400c36",
+      "hash": "0x415084bbaab8e6b7c413d924448d03729dd0fd0ea22bb9f8df8150365f4572a8",
       "status": "success"
     },
     {
       "label": "investor redeems",
-      "hash": "0xbb4601f6db95e290a99d61f5697dd101274934bfef11869141b6d6619f5d4183",
+      "hash": "0xee87f403b5c3547781be6d2fbab5f2760fa1593abd21166b1dcc0a1c4e5b61fc",
       "status": "success"
     },
     {
       "label": "investor2 redeems with an expired credential",
-      "hash": "0x34304ec5fcce89ca1d8eb6129f54d4889e820e6e58fe46904cce752ba79d7dd1",
+      "hash": "0xf0b46a4732b595d0208b48f414bb02be6c0007eab103f04ad048b3e5f7b060fe",
       "status": "success"
     },
     {
       "label": "a wallet with a revoked credential redeems",
-      "hash": "0x76949d2b0663fda408e902524304bcfbeb04cce956f870b44cfcdbafdf283863",
+      "hash": "0x10dd6854a7529410425b5448eb5cf2a068f05b4c2d40926cae99714562bc255a",
       "status": "success"
     },
     {
       "label": "bind second invoice",
-      "hash": "0xada36864ad3bbd42555005c528a076929e6633a492f3612300e3f1930728eb1e",
+      "hash": "0xe1a8dbdbf44d3aab79606866f7f78ebadc97ea83329955c0ff24e6fae94d6794",
       "status": "success"
     },
     {
       "label": "create note 2",
-      "hash": "0x0dd8199146f2a7c4a46860b5264bd5203a2b231d6f53f447b11efbe09afea145",
+      "hash": "0x937dbd09d407babfcceb5ccdcd844367c302327ba565d8d5f61a3ca7c6a335ac",
       "status": "success"
     },
     {
       "label": "approve note 2",
-      "hash": "0xa08d594ea0c3df95aa2d8072758c2ff78b3653730f07d9f3dcbacff3c8eb26cc",
+      "hash": "0x23eb9c3bc6ae0389492ddc469e9899c3aa496b858a794711e01b0648b0865aab",
       "status": "success"
     },
     {
       "label": "fund note 2",
-      "hash": "0x317e4fb406ba1807ace9e39da5589e37e27d9ba272e1f31a671b927d6f0d1582",
+      "hash": "0xc067f7e3ebc5056329c1166c05e06ac80696cc6d2babc8c710b483eda44dff9e",
       "status": "success"
     },
     {
       "label": "mark default",
-      "hash": "0xb7e3f93045a58b61eca2af9f2c33957c808a0882c9970d836f4f0c8f241bfed7",
+      "hash": "0x015aa47be40313ee89e207890152cf4d21238c563f1b4a1fd7a0cc409c9aa04b",
       "status": "success"
     }
   ]

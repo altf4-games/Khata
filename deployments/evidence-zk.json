@@ -1,0 +1,44 @@
+{
+  "chainId": 1874,
+  "KhataRegistry": "0x32a50e36D6a11742A86Ca5bA0c96e330F67F2f34",
+  "HonkVerifier": "0xe950C0ae77B4eA346a52224fd6FF321458f226C6",
+  "nullifier": "0x392c03cd0f7ccf7ad8b609e21f42053eef671cc21759b74734e5fdb793d2849a",
+  "generatedBy": "npm run live:zk",
+  "entries": [
+    {
+      "label": "another wallet replays the proof (refused)",
+      "hash": "0xba9c550245bd1b4b4ae806e4f294abca2bdeb646d8a37b780f85703215b7087a",
+      "status": "reverted"
+    },
+    {
+      "label": "proof with a larger value claimed (refused)",
+      "hash": "0xf57f09d649aa178929c3e6d17ce8ebcc98c516b12fd86b9ea6c4336c27e6ca0c",
+      "status": "reverted"
+    },
+    {
+      "label": "a proof under a modulus that is no registered key (refused)",
+      "hash": "0x19d0c25619efe5feecaee6ebaaa023683568573da9ecdd72cde1d42760cad98f",
+      "status": "reverted"
+    },
+    {
+      "label": "bind by proof",
+      "hash": "0x2ea532a43efc7b622b7ddc1a8cdd3d7a524c0474d0239a8ffb38f2d4eee86a2c",
+      "status": "success"
+    },
+    {
+      "label": "the same proof submitted again (refused)",
+      "hash": "0x75d9813d5746c706aad1b3daddd7a0c4b65427fdb027b39f2b23f90447beccdd",
+      "status": "reverted"
+    },
+    {
+      "label": "plain bind of the same invoice after the proof (refused)",
+      "hash": "0x150200a31e9ba846960369791d104a2f06ed71c4284f169c3734cb06aafc349c",
+      "status": "reverted"
+    },
+    {
+      "label": "create note from the proof-bound invoice",
+      "hash": "0xf1b0e7f9bf67bb2a56e932fb85dd861ea000be85bbf2f5332c7acf092d813680",
+      "status": "success"
+    }
+  ]
+}

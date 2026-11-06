@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AttesterRegistry} from "../src/AttesterRegistry.sol";
 import {KhataRegistry} from "../src/KhataRegistry.sol";
 import {KhataFactory} from "../src/KhataFactory.sol";
+import {HonkVerifier} from "../src/zk/HonkVerifier.sol";
 
 /// Deploys the whole system on Whitechain Sepolia against the prize USDT.
 /// Env: DEMO_ATTESTER_ADDRESS (the labelled demo attester), COOL_OFF_SECONDS (live demo uses a short value;
@@ -31,10 +32,14 @@ contract DeployKhata is Script {
         registry.addKey(NIC_KID, nic, EXPONENT, false);
         registry.addKey(DEMO_KID, demo, EXPONENT, true);
         factory = new KhataFactory(IERC20(USDT), registry, attesters, rate);
+        // binding by zero-knowledge proof: the verifier for the circuit in zk/khata_zk
+        HonkVerifier verifier = new HonkVerifier();
+        registry.setZkVerifier(address(verifier));
         vm.stopBroadcast();
 
         console.log("AttesterRegistry", address(attesters));
         console.log("KhataRegistry", address(registry));
         console.log("KhataFactory", address(factory));
+        console.log("HonkVerifier", address(verifier));
     }
 }

@@ -22,3 +22,4 @@ playwright-report/
 .vercel
 zk/**/target/
 *.private.pem
+zk/**/Prover.toml

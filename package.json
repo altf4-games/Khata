@@ -16,7 +16,8 @@
     "test:web": "playwright test layout verdict landing signer no-keys pick traffic evidence pin retry camera",
     "second-issuer": "tsx scripts/second-issuer.ts",
     "test:arkiv": "playwright test arkiv",
-    "test:web:live": "playwright test lifecycle"
+    "test:web:live": "playwright test lifecycle",
+    "live:zk": "node scripts/live-zk.mjs"
   },
   "dependencies": {
     "@anon-rpc/browser-harness": "0.4.0",

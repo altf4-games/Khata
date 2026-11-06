@@ -7,6 +7,11 @@ import {NicJwt} from "./NicJwt.sol";
 import {NicInvoice} from "./NicInvoice.sol";
 import {AttesterRegistry} from "./AttesterRegistry.sol";
 
+/// @notice Checks a zero-knowledge proof (made with the Noir circuit in zk/khata_zk) that a registered key signed an e-invoice.
+interface IProofVerifier {
+    function verify(bytes calldata proof, bytes32[] calldata publicInputs) external view returns (bool);
+}
+
 /// @notice Holds the accepted signing keys by `kid` and binds each e-invoice (by IRN) at most once.
 /// @dev Only the wallet an accepted attester has bound to the invoice's seller GSTIN may bind that
 ///      seller's invoices, so holding a copy of the QR is not enough (QR squatting). The duplicate
@@ -25,6 +30,13 @@ contract KhataRegistry is Ownable2Step {
     error NotSellerWallet(address expected);
     error SellerBindingExpired(uint64 validUntil);
     error VersionTooFar(uint64 version);
+    error ZkNotEnabled();
+    error ZkKeyRetired();
+    error BadProofInputs();
+    error UnknownZkKey();
+    error DemoFlagMismatch();
+    error ProofNotForCaller(address expected);
+    error InvalidProof();
 
     uint32 internal constant MIN_EXPONENT = 65537;
     uint256 internal constant MAX_KID_BYTES = 64;
@@ -78,6 +90,13 @@ contract KhataRegistry is Ownable2Step {
     uint64 public immutable coolOff;
 
     mapping(bytes32 kidHash => Key) private _keys;
+    /// keccak256(modulus bytes) to the key's kid hash, so a proof's public modulus finds its registered key
+    mapping(bytes32 modulusHash => bytes32 kidHash) private _kidByModulus;
+    IProofVerifier public zkVerifier;
+
+    /// Public inputs of the circuit, in order: 18 modulus limbs, owner, demo flag, nullifier (hi, lo), GSTIN hash (hi, lo), paise.
+    uint256 internal constant ZK_INPUTS = 25;
+    uint256 internal constant LIMB_BITS = 120;
     mapping(bytes32 nullifier => Binding) public bindings;
     uint64 public constant MAX_VERSION_STEP = 1_000_000;
     mapping(bytes32 gstinHash => Seller) public sellers;
@@ -106,6 +125,7 @@ contract KhataRegistry is Ownable2Step {
         bytes32 h = keccak256(bytes(kid));
         if (_keys[h].exists) revert KeyAlreadyRegistered(kid);
         _keys[h] = Key(modulus, exponent, true, true, demo);
+        _kidByModulus[keccak256(modulus)] = h;
         emit KeyAdded(h, kid, demo);
     }
 
@@ -171,12 +191,7 @@ contract KhataRegistry is Ownable2Step {
 
         NicInvoice.Invoice memory inv = NicInvoice.parse(p.payload);
         bytes32 gstinHash = keccak256(bytes(inv.sellerGstin));
-        Seller memory seller = sellers[gstinHash];
-        if (seller.wallet == address(0) || !attesters.isAttester(seller.attester)) {
-            revert SellerNotRegistered(gstinHash);
-        }
-        if (msg.sender != seller.wallet) revert NotSellerWallet(seller.wallet);
-        if (seller.validUntil <= block.timestamp) revert SellerBindingExpired(seller.validUntil);
+        _requireSellerWallet(gstinHash);
 
         nullifier = k.demo ? NicInvoice.demoNullifierOf(inv.irn) : NicInvoice.nullifierOf(inv.irn);
         if (bindings[nullifier].boundAt != 0) revert IrnAlreadyFinanced(nullifier);
@@ -190,6 +205,90 @@ contract KhataRegistry is Ownable2Step {
             gstinHash
         );
         emit InvoiceBound(nullifier, inv.irn, keccak256(bytes(kid)), msg.sender, inv.valuePaise);
+    }
+
+    /// @dev The wallet an accepted attester bound to this seller GSTIN, still in date, must be the caller.
+    function _requireSellerWallet(bytes32 gstinHash) private view {
+        Seller memory seller = sellers[gstinHash];
+        if (seller.wallet == address(0) || !attesters.isAttester(seller.attester)) {
+            revert SellerNotRegistered(gstinHash);
+        }
+        if (msg.sender != seller.wallet) revert NotSellerWallet(seller.wallet);
+        if (seller.validUntil <= block.timestamp) revert SellerBindingExpired(seller.validUntil);
+    }
+
+    // ---------- zero-knowledge binding ----------
+
+    /// @notice Turns on binding by proof. Set once the verifier for the circuit's verification key is deployed.
+    function setZkVerifier(address verifier) external onlyOwner {
+        zkVerifier = IProofVerifier(verifier);
+    }
+
+    /// @notice Binds an invoice from a proof instead of the token: the token never goes on chain, so the IRN, the other
+    ///         invoice fields and the buyer stay private; only the nullifier, the seller's GSTIN hash and the value are public.
+    ///         The proof names the caller as its owner, so nobody else can submit it. The IRN is stored as zero.
+    function bindInvoiceZk(bytes calldata proof, bytes32[] calldata publicInputs) external returns (bytes32 nullifier) {
+        if (address(zkVerifier) == address(0)) revert ZkNotEnabled();
+        if (publicInputs.length != ZK_INPUTS) revert BadProofInputs();
+        if (publicInputs[18] != bytes32(uint256(uint160(msg.sender)))) {
+            revert ProofNotForCaller(address(uint160(uint256(publicInputs[18]))));
+        }
+
+        // the signing key: the 18 public limbs must rebuild exactly the modulus of a registered key
+        bytes32 kidHash = _kidByModulus[_modulusHash(publicInputs)];
+        if (kidHash == bytes32(0)) revert UnknownZkKey();
+        Key storage k = _keys[kidHash];
+        if (!k.active) revert ZkKeyRetired();
+        if (publicInputs[19] != bytes32(uint256(k.demo ? 1 : 0))) revert DemoFlagMismatch();
+
+        nullifier = bytes32((uint256(publicInputs[20]) << 128) | uint256(publicInputs[21]));
+        bytes32 gstinHash = bytes32((uint256(publicInputs[22]) << 128) | uint256(publicInputs[23]));
+        uint256 paise = uint256(publicInputs[24]);
+        // both halves are 128-bit numbers by construction of the circuit; reject anything wider so the packing is unambiguous
+        if (
+            (uint256(publicInputs[20])
+                            | uint256(publicInputs[21])
+                            | uint256(publicInputs[22])
+                            | uint256(publicInputs[23])) >> 128 != 0 || paise == 0 || paise > type(uint64).max
+        ) {
+            revert BadProofInputs();
+        }
+
+        _requireSellerWallet(gstinHash);
+        if (bindings[nullifier].boundAt != 0) revert IrnAlreadyFinanced(nullifier);
+        if (!zkVerifier.verify(proof, publicInputs)) revert InvalidProof();
+
+        bindings[nullifier] = Binding(
+            msg.sender,
+            uint64(block.timestamp),
+            uint128(paise),
+            bytes32(0),
+            uint64(block.timestamp) + coolOff,
+            gstinHash
+        );
+        emit InvoiceBound(nullifier, bytes32(0), kidHash, msg.sender, paise);
+    }
+
+    /// @dev keccak256 of the 256 modulus bytes rebuilt from 18 limbs of 120 bits (least significant first). A limb of 2^120 or
+    ///      more is not a valid limb and cannot be the registered modulus, so it hashes to nothing registered.
+    function _modulusHash(bytes32[] calldata inputs) private pure returns (bytes32) {
+        bytes memory n = new bytes(270); // 18 limbs of 15 bytes, big-endian overall
+        for (uint256 i; i < 18; ++i) {
+            uint256 limb = uint256(inputs[i]);
+            if (limb >> LIMB_BITS != 0) return bytes32(0);
+            for (uint256 j; j < 15; ++j) {
+                n[269 - (i * 15 + j)] = bytes1(uint8(limb >> (8 * j)));
+            }
+        }
+        // 2048 bits are 256 bytes, so the top 14 of the 270 bytes must be zero
+        for (uint256 t; t < 14; ++t) {
+            if (n[t] != 0) return bytes32(0);
+        }
+        bytes memory out = new bytes(256);
+        for (uint256 u; u < 256; ++u) {
+            out[u] = n[14 + u];
+        }
+        return keccak256(out);
     }
 
     function isBound(bytes32 nullifier) external view returns (bool) {
