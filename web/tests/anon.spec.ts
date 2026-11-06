@@ -110,3 +110,12 @@ test("when the Tor gateway is down the page says so, switches to Nym, and still 
   await expect(page.getByTestId("reads-chip")).toHaveText(/Reads: Anon-RPC \(Nym\)/, { timeout: 120_000 });
   expect(direct, `direct chain RPC requests from the page: ${JSON.stringify(direct)}`).toEqual([]);
 });
+
+// A Tor start that neither fails nor finishes (guards that cannot be reached keep it retrying) must not leave the user waiting.
+test("a Tor start that takes longer than its deadline switches to Nym and says why", async ({ page }) => {
+  const direct = watchDirectRpc(page);
+  await page.goto("/?anonBootDeadline=1000#app");
+  await expect(page.getByText(/Tor did not finish starting in 1 s\. Trying Nym instead/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("reads-chip")).toHaveText(/Reads: Anon-RPC \(Nym\)/, { timeout: 120_000 });
+  expect(direct, `direct chain RPC requests from the page: ${JSON.stringify(direct)}`).toEqual([]);
+});

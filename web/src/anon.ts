@@ -32,6 +32,8 @@ export const slowAfterMs = Number(params.get("anonSlowAfter") ?? 45_000);
 const specifier = params.get("anonSpecifier") ?? DEFAULT_SPECIFIER; // a test hook: lets a test point at a worker that cannot boot
 /** `?anonNetwork=nym` starts on Nym; `?anonFallback=off` (and any custom specifier) disables the switch, so a test sees the first failure. */
 const firstNetwork: "tor" | "nym" = params.get("anonNetwork") === "nym" ? "nym" : "tor";
+/** How long Tor may take to become ready before Nym is tried. A normal cold start is 8 to 17 s. */
+const bootDeadlineMs = Number(params.get("anonBootDeadline") ?? 40_000);
 const fallbackAllowed = params.get("anonFallback") !== "off" && !params.get("anonSpecifier");
 
 export const traffic = new Traffic();
@@ -76,17 +78,21 @@ export function startAnon(network: "tor" | "nym" = firstNetwork, since = Date.no
   const w = new AnonRpcWorker({ address, ...(config ? { config } : {}), preExisting: { rpcProvider: { request: bootstrapRequest } as never } });
   worker = w;
   // Tor can fail because its demo gateway is unreachable; Nym has no gateway, so it is the one other network to try, once.
-  const fail = (why: string) => {
+  const fail = (why: string, plain = false) => {
+    clearTimeout(deadline);
     if (worker !== w) return;
     if (network === "tor" && fallbackAllowed) {
       w.close();
-      startAnon("nym", since, `Tor could not start (${why}). Trying Nym instead.`);
+      startAnon("nym", since, plain ? `${why}. Trying Nym instead.` : `Tor could not start (${why}). Trying Nym instead.`);
       return;
     }
     if (state.kind !== "failed") set({ kind: "failed", why });
   };
+  const deadline = network === "tor" && fallbackAllowed
+    ? setTimeout(() => fail(`Tor did not finish starting in ${Math.round(bootDeadlineMs / 1000)} s`, true), bootDeadlineMs)
+    : undefined;
   w.ready.then(
-    () => worker === w && set({ kind: "ready", ms: Date.now() - since, network: name }),
+    () => { clearTimeout(deadline); if (worker === w) set({ kind: "ready", ms: Date.now() - since, network: name }); },
     (e) => fail(String((e as Error)?.message ?? e).split("\n")[0]),
   );
   // the worker's own log lines tell the user what the warm-up is doing
