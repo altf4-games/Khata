@@ -2,7 +2,7 @@
 // Needs the demo keys in the ignored .env. Takes about six minutes because the cool-off and due date are real.
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { parseAbi, type Address, type Hex } from "viem";
+import { http, parseAbi, type Address, type Hex } from "viem";
 import { arkivClients, publishRevocation } from "../src/arkiv";
 import { REVOCATION_TYPES } from "../src/eip712";
 // @ts-expect-error plain ESM helper shared with the live scripts
@@ -122,7 +122,7 @@ test("full lifecycle through the four role views on the real chain", async ({ pa
   const credId = cred[4];
   const domain = { name: "KhataAttesters", version: "1", chainId: 1874, verifyingContract: dep.AttesterRegistry } as const;
   const signature = await attester.client.signTypedData({ domain, types: REVOCATION_TYPES, primaryType: "Revocation", message: { credId } });
-  const ark = arkivClients({ accessKey: loadEnv().ARKIV_ACCESS_KEY });
+  const ark = arkivClients({ accessKey: loadEnv().ARKIV_ACCESS_KEY, transport: http() });
   await publishRevocation(ark.wallet(attester.account), { attester: attester.account.address, credId, signature }, Number(cred[3]));
 
   await page.reload();

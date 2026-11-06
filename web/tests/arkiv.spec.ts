@@ -23,7 +23,7 @@ test.setTimeout(240_000);
 const env = loadEnv();
 const dep = deployment().stage2;
 const { publicClient } = clients();
-const ark = arkivClients({ accessKey: env.ARKIV_ACCESS_KEY });
+const ark = arkivClients({ accessKey: env.ARKIV_ACCESS_KEY, transport: http() });
 const attester = wallet("ATTESTER");
 const supplier = wallet("SUPPLIER");
 const investor = wallet("INVESTOR");
