@@ -18,6 +18,7 @@ import { chipText, chooseDirect, useAnon, slowAfterMs, onState, onTraffic, retry
 import { startWatching } from "./arkivApp";
 import { refreshArkiv } from "./store";
 import { refusalFor } from "./errors";
+import { buildCircuitInput } from "./zk-inputs";
 import { evidencePage } from "./evidence";
 import { classify, formatRupees } from "./verdict";
 import { decodeImageFile, startCamera, type CameraScan } from "./scan";
@@ -34,7 +35,8 @@ type Action =
   | { kind: "simulating" }
   | { kind: "readOnly" }
   | { kind: "sending" }
-  | { kind: "done"; hash: string; gas: bigint }
+  | { kind: "proving"; note: string }
+  | { kind: "done"; hash: string; gas: bigint; privately?: boolean }
   | { kind: "refused"; title: string; detail: string };
 
 const state = {
@@ -109,6 +111,38 @@ async function finance() {
     if (state.checkedToken !== token) return;
     const info = revertInfo(e);
     state.action = { kind: "refused", ...refusalFor(info.name, info.args, info.message) };
+  }
+  render();
+}
+/** Binds the invoice by zero-knowledge proof: the proof is made here, so the token and the IRN never reach the chain. */
+async function financePrivately() {
+  const token = state.checkedToken;
+  if (!token || state.token.trim() !== token) return;
+  const w = activeWallet("supplier");
+  if (!w) return;
+  const say = (note: string) => { if (state.checkedToken === token) { state.action = { kind: "proving", note }; render(); } };
+  say("Preparing…");
+  try {
+    const view = state.view;
+    if (view.kind !== "result") return;
+    const [modulus, , , demo] = (await publicClient.readContract({ address: registryAddress, abi, functionName: "keyOf", args: [view.r.kid] })) as [`0x${string}`, string, boolean, boolean];
+    const input = buildCircuitInput(token, modulus, w.address, demo);
+    const { proveInvoice } = await import("./zk");
+    const { proof, inputs } = await proveInvoice(input, say);
+    if (state.checkedToken !== token) return;
+    state.action = { kind: "sending" };
+    render();
+    const sent = await send(w, registryAddress, abi, "bindInvoiceZk", [proof, inputs], 4_500_000n);
+    if (state.checkedToken !== token) return;
+    state.action = { kind: "done", hash: sent.hash, gas: sent.gasUsed, privately: true };
+    await refreshAfterBind(token);
+    void refresh();
+  } catch (e) {
+    if (state.checkedToken !== token) return;
+    const info = revertInfo(e);
+    state.action = info.name
+      ? { kind: "refused", ...refusalFor(info.name, info.args, info.message) }
+      : { kind: "refused", title: "The private binding did not go through", detail: info.message };
   }
   render();
 }
@@ -432,11 +466,20 @@ function actions(r: Inspection) {
   const a = state.action;
   const wrap = el("div", { style: "margin-top:1.25rem" });
   const label = r.alreadyBound ? "Try to finance it again" : "Finance this invoice";
-  const busy = a.kind === "simulating" || a.kind === "sending";
+  const busy = a.kind === "simulating" || a.kind === "sending" || a.kind === "proving";
   wrap.append(el("div", { class: "row", style: "margin-top:0" },
     el("button", { class: "btn primary grow", onclick: finance, disabled: busy || state.token.trim() !== state.checkedToken }, busy ? el("span", { class: "spinner" }) : null, a.kind === "sending" ? "Waiting for the network…" : label),
     activeWallet("supplier") ? el("span", { class: "foot", style: "align-self:center" }, "Sending as ", el("span", { class: "mono" }, short(activeWallet("supplier")!.address, 6, 4))) : null,
   ));
+  if (activeWallet("supplier") && r.signatureValid && !r.alreadyBound) {
+    wrap.append(el("div", { class: "row", style: "margin-top:.5rem" },
+      el("button", { class: "btn grow", "data-testid": "finance-private", onclick: financePrivately, disabled: busy || state.token.trim() !== state.checkedToken },
+        "Finance privately (zero-knowledge proof)"),
+    ), el("p", { class: "foot" }, "Proves, in this browser, that the government's key signed this invoice. The chain records only a one-way ID for it, the seller's GSTIN hash and the value: not the IRN, the buyer or the document. Takes up to a minute."));
+  }
+  if (a.kind === "proving") {
+    wrap.append(el("div", { class: "banner info", role: "status" }, el("span", { class: "spinner" }), el("div", {}, el("strong", {}, "Making a private proof"), el("p", {}, a.note))));
+  }
   if (a.kind === "readOnly") {
     wrap.append(el("div", { class: "banner info" }, el("span", { class: "ic" }, "i"), el("div", {}, el("strong", {}, "The contract would accept this"), el("p", {}, "There is no demo wallet for this role, so the transaction was not sent."))));
   }
@@ -445,7 +488,8 @@ function actions(r: Inspection) {
   }
   if (a.kind === "done") {
     wrap.append(el("div", { class: "banner ok" }, el("span", { class: "ic" }, "✓"), el("div", {},
-      el("strong", {}, "Invoice bound on-chain"),
+      el("strong", {}, a.privately ? "Invoice bound by proof" : "Invoice bound on-chain"),
+      a.privately ? el("p", {}, "The chain recorded only a one-way ID for the invoice, the seller's GSTIN hash and the value. The IRN, the buyer and the document were not written to it. (Checking the QR earlier asked the node to read it, as a call that is not recorded; with Anon-RPC on, the node cannot link that to you.)") : null,
       el("p", {}, `Used ${a.gas.toLocaleString("en-IN")} gas. `, el("a", { href: txUrl(a.hash), target: "_blank", rel: "noopener" }, "View the transaction")))));
   }
   return wrap;

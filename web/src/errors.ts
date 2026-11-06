@@ -23,6 +23,19 @@ export function refusalFor(name: string | undefined, args: Args, fallback?: stri
         title: "Refused: this invoice is already financed",
         detail: "Khata binds each invoice number (IRN) once. A second financing of the same invoice reverts, even with a freshly signed copy.",
       };
+    case "ProofNotForCaller":
+      return { title: "Refused: this proof belongs to another wallet", detail: "A proof names the wallet that made it, so nobody else can submit it. Make the proof from the wallet that will finance the invoice." };
+    case "UnknownZkKey":
+      return { title: "Refused: the proof was made for a key that is not registered", detail: "The proof must come from a signing key the registry knows. Only 2048-bit keys can be used with proofs." };
+    case "DemoFlagMismatch":
+      return { title: "Refused: the proof mixes a demo key with a government key", detail: "Invoices from a labelled demo key and from a government key are kept apart." };
+    case "ZkKeyRetired":
+      return { title: "Refused: that signing key is retired", detail: "The registry no longer accepts new invoices signed by this key." };
+    case "InvalidProof":
+    case "BadProofInputs":
+      return { title: "Refused: the proof did not check out", detail: "The contract's verifier rejected it, so nothing was recorded." };
+    case "ZkNotEnabled":
+      return { title: "Binding by proof is not switched on", detail: "This registry has no proof verifier set." };
     case "InvalidSignature":
       return {
         title: "Refused: the signature does not match",
