@@ -523,6 +523,15 @@ contract KhataNoteTransferTest is KhataNoteBase {
         note.transfer(investor2, 1_000_000);
     }
 
+    /// The rule checks the receiver only. A holder whose own credential was revoked keeps the notes and may still sell them
+    /// on to an eligible holder, so a revocation can never trap funds. Pinned here so the behaviour is deliberate.
+    function test_aRevokedHolderMayStillSellToAnEligibleReceiver() public {
+        _revoke(keccak256("c-investor"));
+        vm.prank(investor);
+        note.transfer(investor2, 1_000_000);
+        assertEq(note.balanceOf(investor2) >= 1_000_000, true);
+    }
+
     /// A credential expiring mid-hold: the holder keeps the notes but can no longer receive more.
     function test_credentialExpiringMidHold() public {
         address third = makeAddr("third");
