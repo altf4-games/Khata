@@ -161,14 +161,14 @@ async function toggleCamera() {
   state.cameraStarting = true;
   render();
   const video = camVideo;
-  state.camera = await startCamera(
-    video,
-    (text) => {
+  state.camera = await startCamera(video, {
+    onText: (text) => {
       state.camera = undefined;
-      state.cameraNote = "";
+      state.cameraNote = "QR code found. Checking the signature…";
       setToken(text);
     },
-    (err) => {
+    onStatus: (note) => { state.cameraNote = note; if (state.camera || state.cameraStarting) render(); },
+    onError: (err) => {
       state.camera = undefined;
       state.cameraNote =
         err.name === "NotAllowedError"
@@ -176,12 +176,9 @@ async function toggleCamera() {
           : "No camera could be started here. Upload a photo of the QR, or paste its text.";
       render();
     },
-  );
+  });
   state.cameraStarting = false;
-  if (state.camera) {
-    state.cameraNote = "Point the camera at the QR code.";
-    render();
-  }
+  if (state.camera) render();
 }
 
 async function onFile(ev: Event) {
