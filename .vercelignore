@@ -1,0 +1,14 @@
+.env
+.env.*
+.claude
+contracts/test/fixtures/demo-irp/*.pem
+lib
+out
+cache
+broadcast
+logs
+test-results
+node_modules
+dist
+*.key
+*.keystore

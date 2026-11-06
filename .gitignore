@@ -19,3 +19,4 @@ keystore/
 dist/
 test-results/
 playwright-report/
+.vercel
