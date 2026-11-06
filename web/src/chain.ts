@@ -12,6 +12,8 @@ export const whitechainSepolia = defineChain({
   nativeCurrency: { name: "WBT", symbol: "WBT", decimals: 18 },
   rpcUrls: { default: { http: ["https://rpc.testnet.whitechain.io"] } },
   blockExplorers: { default: { name: "Whitechain Explorer", url: deployment.explorer } },
+  // Multicall3 is deployed here (checked with eth_getCode), so many contract reads travel as one call.
+  contracts: { multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" } },
 });
 
 const stage = deployment.stage2;
@@ -38,7 +40,7 @@ export const usdtPermitDomain = { name: "Tether USD", version: "1", chainId: 187
 export const attesterDomain = { name: "KhataAttesters", version: "1", chainId: 1874, verifyingContract: attestersAddress } as const;
 
 // Every read goes through Anon-RPC (see anon.ts); batched so one request carries many calls.
-export const publicClient = createPublicClient({ chain: whitechainSepolia, transport: chainTransport(undefined, { batch: true }) });
+export const publicClient = createPublicClient({ chain: whitechainSepolia, transport: chainTransport(undefined, { batch: true }), batch: { multicall: true } });
 
 export interface Invoice {
   sellerGstin: string;

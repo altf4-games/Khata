@@ -241,7 +241,8 @@ test("a listing can be extended by its owner only, and the new expiry is later",
   const { note, nullifier, seller, faceValue, dueDate } = logs[logs.length - 1].args;
   const base = { note, seller, nullifier, faceValue: BigInt(faceValue), discountBps: 500, dueDate: Number(dueDate), minTier: 1, status: "open", title: `extend test ${stamp}` };
   const created = await publishListing(supplierArk, base, 0);
-  const extended = await extendListing(supplierArk, created.entityKey, 3600);
+  // 90 days: a listing's own expiry follows the latest note's due date, which varies, so a short extension could fall before it
+  const extended = await extendListing(supplierArk, created.entityKey, 90 * 24 * 3600);
   expect(extended.expiresAt).toBeGreaterThan(created.expiresAt);
   await expect(extendListing(attesterArk, created.entityKey, 3600)).rejects.toThrow(/owned by|refused/);
 });

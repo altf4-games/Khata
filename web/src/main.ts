@@ -467,8 +467,7 @@ function openApp(role: Role = "supplier", token?: string) {
   store.role = role;
   if (token) state.token = token;
   if (location.hash !== "#app") location.hash = "#app";
-  else render();
-  void refresh();
+  else { render(); void refresh(); }
   if (token) void check();
 }
 
@@ -546,7 +545,7 @@ setInterval(() => {
   });
 }, 1000);
 setInterval(() => {
-  if (!store.loading && !(document.activeElement instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) void refresh();
+  if (inApp() && !store.loading && !(document.activeElement instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) void refresh();
 }, 30000); // each refresh is several round trips over Tor, so poll less often
 function spanText(s: number) {
   s = Math.round(s);
@@ -558,6 +557,18 @@ render();
 onState(render);
 onTraffic(refreshChip);
 startAnon();
-void refresh();
-// new, changed or expired Arkiv entities refresh the Arkiv panels straight away instead of waiting for the poll
-startWatching(() => void refreshArkiv());
+
+// The front page reads nothing from the chain: reads, the Arkiv watcher and the poll start only when the app is opened.
+let stopWatching: (() => void) | undefined;
+function syncRoute() {
+  if (inApp()) {
+    if (!store.loaded && !store.loading) void refresh();
+    // new, changed or expired Arkiv entities refresh the Arkiv panels straight away instead of waiting for the poll
+    stopWatching ??= startWatching(() => void refreshArkiv());
+  } else {
+    stopWatching?.();
+    stopWatching = undefined;
+  }
+}
+window.addEventListener("hashchange", syncRoute);
+syncRoute();

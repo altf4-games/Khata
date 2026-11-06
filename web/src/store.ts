@@ -118,7 +118,16 @@ export async function run(key: string, busy: string, fn: () => Promise<Sent | un
 
 /** Arkiv is read separately, so an Arkiv outage never hides what the chain says. */
 let aseq = 0;
-export async function refreshArkiv(now = nowEst2()) {
+let arkivInFlight: { key: string; p: Promise<void> } | undefined;
+export function refreshArkiv(now = nowEst2()): Promise<void> {
+  // the same read asked for twice at once (start-up, a poll and a watcher event) is made once
+  const key = JSON.stringify([store.form["m:disc"], store.form["m:due"], store.form["m:status"], store.form["m:sort"]]);
+  if (arkivInFlight?.key === key) return arkivInFlight.p;
+  const p = readArkiv(now).finally(() => { if (arkivInFlight?.p === p) arkivInFlight = undefined; });
+  arkivInFlight = { key, p };
+  return p;
+}
+async function readArkiv(now: number) {
   const mine = ++aseq;
   try {
     const disc = Math.round(Number(store.form["m:disc"] ?? "0") * 100);
