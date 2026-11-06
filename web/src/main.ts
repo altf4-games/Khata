@@ -248,7 +248,7 @@ function anonBanner(): HTMLElement | null {
   if (s.kind === "starting") {
     return el("div", { class: "wrap" }, el("div", { class: "banner info", role: "status" }, el("span", { class: "spinner" }),
       el("div", {}, el("strong", {}, "Starting Anon-RPC"),
-        el("p", {}, "Opening a private route over Tor so the RPC providers cannot link your address to the invoices you look at. It takes about 15 seconds the first time. Reads are queued and run privately as soon as it is ready (", el("span", { "data-anon-elapsed": String(s.since) }, "0 s"), ")."),
+        el("p", {}, "Opening a private route over " + s.network + " so the RPC providers cannot link your address to the invoices you look at. It takes about 15 seconds the first time. Reads are queued and run privately as soon as it is ready (", el("span", { "data-anon-elapsed": String(s.since) }, "0 s"), ")."),
         s.lines.length ? el("p", { class: "foot mono" }, s.lines[s.lines.length - 1]) : null,
         // Tor sometimes cannot reach a guard and backs off for minutes, so a slow start is offered a choice, never an automatic fallback
         el("div", { "data-anon-slow": String(s.since), hidden: true },

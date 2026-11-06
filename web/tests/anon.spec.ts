@@ -75,7 +75,7 @@ test("?reads=direct is an explicit opt-out and is labelled as such", async ({ pa
 test("an unreachable gateway is reported in plain words within seconds, with a choice and nothing read directly", async ({ page }) => {
   const direct = watchDirectRpc(page);
   // 203.0.113.0/24 is reserved for documentation and is not routed
-  await page.goto("/?anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ#app");
+  await page.goto("/?anonFallback=off&anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ#app");
   const alert = page.getByRole("alert").filter({ hasText: "Anonymous reads are unavailable" });
   await expect(alert).toBeVisible({ timeout: 60_000 });
   await expect(alert).toContainText("could not be reached over WebRTC");
@@ -85,8 +85,28 @@ test("an unreachable gateway is reported in plain words within seconds, with a c
 
 test("a slow start offers the choice while it keeps waiting", async ({ page }) => {
   const direct = watchDirectRpc(page);
-  await page.goto("/?anonSlowAfter=1500&anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ#app");
+  await page.goto("/?anonSlowAfter=1500&anonFallback=off&anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ#app");
   await expect(page.getByText("This is taking longer than usual")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Start over" })).toBeVisible();
   expect(direct).toEqual([]);
+});
+
+// Nym needs no gateway, so unlike Tor it does not depend on EF's shared demo gateway.
+test("on Nym, reads go through Anon-RPC and the page makes no direct chain RPC request", async ({ page }) => {
+  const direct = watchDirectRpc(page);
+  await page.goto("/?anonNetwork=nym&anonFallback=off#app");
+  const chip = page.getByTestId("reads-chip");
+  await expect(chip).toHaveText(/Reads: Anon-RPC \(Nym\)/, { timeout: 120_000 });
+  await page.getByRole("tab", { name: /Investor/ }).click();
+  await expect(page.locator(".note").first()).toBeVisible({ timeout: 120_000 });
+  await expect(chip).toContainText("100%");
+  expect(direct, `direct chain RPC requests from the page: ${JSON.stringify(direct)}`).toEqual([]);
+});
+
+test("when the Tor gateway is down the page says so, switches to Nym, and still reads nothing directly", async ({ page }) => {
+  const direct = watchDirectRpc(page);
+  await page.goto("/?anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ#app");
+  await expect(page.getByText(/Trying Nym instead/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("reads-chip")).toHaveText(/Reads: Anon-RPC \(Nym\)/, { timeout: 120_000 });
+  expect(direct, `direct chain RPC requests from the page: ${JSON.stringify(direct)}`).toEqual([]);
 });

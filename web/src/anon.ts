@@ -5,9 +5,12 @@
 import { AnonRpcWorker } from "@anon-rpc/browser-harness";
 import { http, type Transport } from "viem";
 import { Traffic } from "./traffic";
+import { checkPin } from "./pin";
 
 /** The tor-js anon-client's on-chain specifier (Ethereum mainnet). Its bytes are checked against `workerHash()` before they run. */
 const DEFAULT_SPECIFIER = "0x700dA3193D35fA54Cd3fBf29B66f2a2A0385659e";
+/** The Nym worker's specifier, from EF's integration guide (https://ethereum.github.io/anon-rpc/wallets/). Its config is `undefined`: no gateway. */
+const NYM_SPECIFIER = "0x3aCD9742C68F6d993066Ae25533e09b9e1f60eD0";
 /**
  * EF's demo gateway for the tor-js worker (ip:port:certhash). The worker has no default gateway. EF describes this one
  * as limited capacity that may disappear at any time, so it is a single point of failure; `?anonGateway=` overrides it.
@@ -17,8 +20,8 @@ const DEMO_GATEWAY = "152.236.3.22:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7Co
 const BOOTSTRAP_RPC = "https://ethereum-rpc.publicnode.com";
 
 export type AnonState =
-  | { kind: "starting"; since: number; lines: string[] }
-  | { kind: "ready"; ms: number }
+  | { kind: "starting"; since: number; lines: string[]; network: string }
+  | { kind: "ready"; ms: number; network: string }
   | { kind: "failed"; why: string }
   | { kind: "direct" }; // the user's explicit choice (or ?reads=direct)
 
@@ -27,9 +30,12 @@ const gateway = params.get("anonGateway") ?? DEMO_GATEWAY;
 /** After this long still starting, the page offers a choice (a test can shorten it). */
 export const slowAfterMs = Number(params.get("anonSlowAfter") ?? 45_000);
 const specifier = params.get("anonSpecifier") ?? DEFAULT_SPECIFIER; // a test hook: lets a test point at a worker that cannot boot
+/** `?anonNetwork=nym` starts on Nym; `?anonFallback=off` (and any custom specifier) disables the switch, so a test sees the first failure. */
+const firstNetwork: "tor" | "nym" = params.get("anonNetwork") === "nym" ? "nym" : "tor";
+const fallbackAllowed = params.get("anonFallback") !== "off" && !params.get("anonSpecifier");
 
 export const traffic = new Traffic();
-export let state: AnonState = params.get("reads") === "direct" ? { kind: "direct" } : { kind: "starting", since: Date.now(), lines: [] };
+export let state: AnonState = params.get("reads") === "direct" ? { kind: "direct" } : { kind: "starting", since: Date.now(), lines: [], network: "Tor" };
 
 // two kinds of change: the state (re-render the page) and the counters (update the status chip in place)
 const stateListeners = new Set<() => void>();
@@ -53,20 +59,35 @@ async function bootstrapRequest({ method, params }: { method: string; params?: u
   });
   const body = await res.json();
   if (body.error) throw new Error(body.error.message ?? "bootstrap read failed");
+  // the worker's identity is pinned here: a changed workerHash() stops the worker before it runs
+  const call = (params?.[0] ?? {}) as { to?: string; data?: string; input?: string };
+  if (method === "eth_call" && call.to) checkPin(call.to, String(call.data ?? call.input ?? ""), String(body.result));
   return body.result;
 }
 
-export function startAnon() {
+export function startAnon(network: "tor" | "nym" = firstNetwork, since = Date.now(), earlier?: string) {
   worker?.close();
   worker = undefined;
   if (state.kind === "direct") return;
-  const since = Date.now();
-  set({ kind: "starting", since, lines: [] });
-  const w = new AnonRpcWorker({ address: specifier, config: { gateways: [gateway] }, preExisting: { rpcProvider: { request: bootstrapRequest } as never } });
+  const name = network === "tor" ? "Tor" : "Nym";
+  set({ kind: "starting", since, lines: earlier ? [earlier] : [], network: name });
+  const address = network === "tor" ? specifier : NYM_SPECIFIER;
+  const config = network === "tor" ? { gateways: [gateway] } : undefined;
+  const w = new AnonRpcWorker({ address, ...(config ? { config } : {}), preExisting: { rpcProvider: { request: bootstrapRequest } as never } });
   worker = w;
+  // Tor can fail because its demo gateway is unreachable; Nym has no gateway, so it is the one other network to try, once.
+  const fail = (why: string) => {
+    if (worker !== w) return;
+    if (network === "tor" && fallbackAllowed) {
+      w.close();
+      startAnon("nym", since, `Tor could not start (${why}). Trying Nym instead.`);
+      return;
+    }
+    if (state.kind !== "failed") set({ kind: "failed", why });
+  };
   w.ready.then(
-    () => worker === w && set({ kind: "ready", ms: Date.now() - since }),
-    (e) => worker === w && state.kind !== "failed" && set({ kind: "failed", why: String((e as Error)?.message ?? e).split("\n")[0] }),
+    () => worker === w && set({ kind: "ready", ms: Date.now() - since, network: name }),
+    (e) => fail(String((e as Error)?.message ?? e).split("\n")[0]),
   );
   // the worker's own log lines tell the user what the warm-up is doing
   void (async () => {
@@ -78,9 +99,8 @@ export function startAnon() {
           console.debug("[anon-rpc]", line);
           // A browser cannot reach Tor without the gateway; once the gateway cannot be dialled the worker can never finish
           // starting, so say so now instead of leaving the user watching a spinner.
-          if (/all gateways failed/i.test(line)) {
-            set({ kind: "failed", why: `the gateway ${gateway.split(":").slice(0, 2).join(":")} could not be reached over WebRTC. UDP may be blocked on this network, or EF's demo gateway may be down` });
-            w.close(); // closing rejects `ready`, which must not overwrite the reason above
+          if (network === "tor" && /all gateways failed/i.test(line)) {
+            fail(`the gateway ${gateway.split(":").slice(0, 2).join(":")} could not be reached over WebRTC. UDP may be blocked on this network, or EF's demo gateway may be down`);
             return;
           }
           set({ ...state, lines: [...state.lines.slice(-3), line] });
@@ -97,7 +117,7 @@ export function startAnon() {
 export async function retryAnon() {
   worker?.close();
   worker = undefined;
-  set({ kind: "starting", since: Date.now(), lines: [] });
+  set({ kind: "starting", since: Date.now(), lines: [], network: firstNetwork === "nym" ? "Nym" : "Tor" });
   await new Promise<void>((resolve) => {
     const req = indexedDB.deleteDatabase("anon-rpc-harness");
     req.onsuccess = req.onerror = req.onblocked = () => resolve();
@@ -162,7 +182,7 @@ export function chipText(): { text: string; title: string; tone: "ok" | "wait" |
     case "starting":
       return { text: "Reads: starting Anon-RPC…", title: "Opening a private route over Tor. Reads wait until it is ready.", tone: "wait" };
     case "ready":
-      return { text: `Reads: Anon-RPC${share === undefined ? "" : ` · ${Math.round(share * 100)}% (${s.anon}/${s.anon + s.direct})`}`, title: `${detail} Writes are not anonymised.`, tone: "ok" };
+      return { text: `Reads: Anon-RPC (${state.network})${share === undefined ? "" : ` · ${Math.round(share * 100)}% (${s.anon}/${s.anon + s.direct})`}`, title: `${detail} Writes are not anonymised.`, tone: "ok" };
     case "failed":
       return { text: "Reads: unavailable", title: state.why, tone: "bad" };
     case "direct":
