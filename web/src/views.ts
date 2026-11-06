@@ -1,4 +1,5 @@
 // Role views: wallet bar, note cards with the actions that apply, and the attester's credential desk.
+import { emptyBox } from "./spots";
 import { hexToSignature, keccak256, toHex, type Address } from "viem";
 import {
   addressUrl, attesterDomain, attestersAbi, attestersAddress, factoryAbi, factoryAddress, noteAbi, publicClient, txUrl,
@@ -245,7 +246,7 @@ export function notesList(role: Role, only?: (n: NoteInfo) => boolean, emptyText
   if (store.loadError) return el("div", { class: "banner bad", role: "alert" }, el("span", { class: "ic" }, "✕"), el("div", {}, el("strong", {}, "Could not read the chain"), el("p", {}, "The RPC did not answer. Try again in a moment."), el("button", { class: "btn", onclick: () => void refresh() }, "Retry")));
   if (!store.loaded) return el("div", { class: "banner info", role: "status" }, el("span", { class: "spinner" }), el("div", {}, el("strong", {}, "Reading notes from Whitechain…")));
   if (!list.length) {
-    const e = el("div", { class: "empty" }, el("h3", {}, "Nothing here yet"), el("p", {}, emptyText));
+    const e = emptyBox("Nothing here yet", emptyText);
     return e;
   }
   const LIMIT = 4;

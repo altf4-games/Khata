@@ -1,5 +1,7 @@
 import "./styles.css";
 import { landing, LOGO } from "./landing";
+import { SPOTS, emptyBox, spot } from "./spots";
+import garlandSvg from "./art/garland.svg?raw";
 import nicSample from "../../contracts/test/fixtures/nic-sample.token?raw";
 import demoInvoices from "./demo-invoices.json";
 import {
@@ -360,9 +362,7 @@ function resultCard() {
     el("span", { class: "kicker" }, "Step 2"), el("h2", { id: "h-ver" }, "What the contract found"));
 
   if (v.kind === "idle") {
-    const e = el("div", { class: "empty" });
-    e.innerHTML = `<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="6" width="42" height="52" rx="5" fill="none" stroke="currentColor" stroke-width="3"/><path d="M12 8v48" stroke="currentColor" stroke-width="6"/><path d="M24 20h22M24 30h22M24 40h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`;
-    e.append(el("h3", {}, "The ledger page is blank"), el("p", {}, "Scan a QR, paste its text, or use a sample. The contract will show who signed it and whether the signature holds."));
+    const e = emptyBox("The ledger page is blank", "Scan a QR, paste its text, or use a sample. The contract will show who signed it and whether the signature holds.");
     card.append(e);
     return card;
   }
@@ -458,7 +458,14 @@ const PAGE: Record<Role, { title: string; text: string }> = {
   attester: { title: "Attester", text: "You are the trusted signer. You vouch that a wallet may hold notes, and that a seller wallet really belongs to a GSTIN. Both are checked on-chain from your signature." },
 };
 function pageHead(role: Role): HTMLElement {
-  return el("div", { class: "wrap page-head" }, el("h1", {}, PAGE[role].title), el("p", {}, PAGE[role].text));
+  return el("div", { class: "wrap page-head" }, el("div", { class: "page-head-text" }, el("h1", {}, PAGE[role].title), el("p", {}, PAGE[role].text)), spot(SPOTS[role], "spot head-spot"));
+}
+
+/** A thin marigold garland under the top bar, repeated to any width. */
+function appGarland(): HTMLElement {
+  const row = el("div", { class: "garland-row" });
+  for (let i = 0; i < 8; i++) { const t = el("div", { class: "tile" }); t.innerHTML = garlandSvg; row.append(t); }
+  return el("div", { class: "garland mini", "aria-hidden": "true" }, row);
 }
 
 const inApp = () => location.hash === "#app";
@@ -510,7 +517,7 @@ function render() {
     main.append(el("div", { class: "wrap" }, el("h2", { class: "section" }, role === "investor" ? "All notes on Whitechain" : "Notes"),
       notesList(role, undefined, "No notes exist yet. Switch to the supplier role to register an invoice and create one.")));
   }
-  shell.append(topbar(), ...[anonBanner()].filter((x): x is HTMLElement => !!x), roleSwitch(), main, footer());
+  shell.append(topbar(), appGarland(), ...[anonBanner()].filter((x): x is HTMLElement => !!x), roleSwitch(), main, footer());
   document.getElementById("app")!.replaceChildren(roughDefs(), shell);
   if (hadFocus === "token") {
     const ta = document.getElementById("token") as HTMLTextAreaElement | null;

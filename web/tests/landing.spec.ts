@@ -63,3 +63,19 @@ test("with reduced motion the sky and train stand still", async ({ browser }) =>
   expect(names).toEqual(["none", "none", "none", "none"]);
   await ctx.close();
 });
+
+for (const [w, h] of [[1440, 900], [1920, 1080], [1280, 720], [1024, 768], [768, 1024], [390, 844], [375, 700]]) {
+  test(`the whole first screen (headline, input and skyline with its track) fits one view at ${w}x${h}`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto("/?reads=direct");
+    const m = await page.evaluate(() => ({
+      rail: document.querySelector(".rail")!.getBoundingClientRect().bottom,
+      examples: document.querySelector(".examples")!.getBoundingClientRect().bottom,
+      sky: document.querySelector(".skyline")!.getBoundingClientRect().height,
+      vh: window.innerHeight,
+    }));
+    expect(m.rail, "the track is on screen without scrolling").toBeLessThanOrEqual(m.vh + 1);
+    expect(m.examples, "the example buttons are on screen").toBeLessThanOrEqual(m.vh);
+    expect(m.sky, "the skyline is big enough to read").toBeGreaterThanOrEqual(160);
+  });
+}

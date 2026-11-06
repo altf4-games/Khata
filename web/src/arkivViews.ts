@@ -1,4 +1,5 @@
 // Views that read from Arkiv: the credential panel, the marketplace, and the supplier's listing button.
+import { emptyBox } from "./spots";
 import type { Hex } from "viem";
 import { attestersAbi, attestersAddress, addressUrl } from "./chain";
 import { el, put, short } from "./ui";
@@ -50,7 +51,7 @@ export function credentialPanel(w: DemoWallet): HTMLElement {
       }, "Activate on Whitechain")),
     );
   } else if (!good && !active) {
-    panel.append(el("div", { class: "empty" }, el("h3", {}, "No credential on Arkiv"), el("p", {}, "Ask an attester to publish one for this wallet. Switch to the attester role to do that.")));
+    panel.append(emptyBox("No credential on Arkiv", "Ask an attester to publish one for this wallet. Switch to the attester role to do that."));
   }
   // a verified revocation that Whitechain has not seen yet
   if (active && e?.credId) {
@@ -100,7 +101,7 @@ export function marketplace(role: Role): HTMLElement {
   };
   const good = store.arkiv.listings.filter((l) => l.ok && !(wantsOpen && stale(l.rec.note)));
   const ignored = store.arkiv.listings.filter((l) => !l.ok);
-  if (!good.length) wrap.append(el("div", { class: "empty" }, el("h3", {}, "No listings match"), el("p", {}, "Sellers publish a listing after creating a note. Widen the filters, or switch to the supplier role to create one.")));
+  if (!good.length) wrap.append(emptyBox("No listings match", "Sellers publish a listing after creating a note. Widen the filters, or switch to the supplier role to create one."));
   const cards = el("div", { class: "notes one" }); // one column: this card already sits in half the page width
   for (const l of good) {
     const n = store.notes.find((x) => x.address.toLowerCase() === l.rec.note.toLowerCase());

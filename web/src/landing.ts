@@ -42,7 +42,7 @@ function svgBox(cls: string, markup: string) {
 
 export function landing(h: LandingHandlers): HTMLElement {
   const ta = el("textarea", {
-    id: "land-token", rows: 3, spellcheck: "false", autocomplete: "off", autocapitalize: "off",
+    id: "land-token", rows: 2, spellcheck: "false", autocomplete: "off", autocapitalize: "off",
     placeholder: "Paste the text of a GST e-invoice QR here (it starts with eyJ…), or scan it.",
     "aria-label": "E-invoice QR text",
   });
@@ -50,8 +50,8 @@ export function landing(h: LandingHandlers): HTMLElement {
   ta.addEventListener("input", () => h.setText(ta.value));
   const file = el("input", { type: "file", accept: "image/*", class: "sr-only", id: "land-file", onchange: h.onFile });
 
-  const chip = (icon: string, label: string, fn: () => void, disabled = false) => {
-    const b = el("button", { class: "example", type: "button", onclick: fn, disabled });
+  const chip = (icon: string, label: string, fn: () => void, disabled = false, extra = "") => {
+    const b = el("button", { class: `example ${extra}`.trim(), type: "button", onclick: fn, disabled });
     b.innerHTML = icon;
     b.append(label);
     return b;
@@ -82,13 +82,12 @@ export function landing(h: LandingHandlers): HTMLElement {
           go)),
       el("div", { class: "examples", "aria-label": "Try an example" },
         chip(ICON.doc, "NIC sample QR", () => h.open(h.nicSample())),
-        chip(ICON.flag, h.demoBusy() ? "Finding one…" : "Demo invoice (DEMO IRP key)", h.demoInvoice, h.demoBusy()),
+        chip(ICON.flag, h.demoBusy() ? "Finding one…" : "Demo invoice (DEMO IRP key)", h.demoInvoice, h.demoBusy(), "extra"),
         chip(ICON.edit, "Change one byte, watch it fail", h.tamper)),
     ),
     el("div", { class: "skyline", role: "img", "aria-label": "Ink illustration of a Mumbai waterfront with a clock tower, a stone gateway, a domed hotel, a sea bridge and a local train passing" },
       el("div", { class: "sky-fill", style: `background-image:url(${fillerUrl})` }),
-      svgBox("sun", sunSvg),
-      svgBox("sky-cluster", skylineSvg),
+      (() => { const art = el("div", { class: "sky-art" }); art.append(svgBox("sun", sunSvg)); art.insertAdjacentHTML("beforeend", skylineSvg); return el("div", { class: "sky-cluster" }, art); })(),
       el("div", { class: "rail" }, svgBox("train", trainSvg))),
   );
 

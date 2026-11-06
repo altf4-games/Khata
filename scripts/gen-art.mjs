@@ -27,8 +27,8 @@ const C = {
 
 const defs = `<defs>
 <filter id="wob" x="-2%" y="-2%" width="104%" height="104%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="5" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.2"/></filter>
-<filter id="paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="9" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .23  0 0 0 0 .16  0 0 0 0 .24  0 0 0 -2.2 1.25" result="spec"/><feComposite in="spec" in2="SourceAlpha" operator="in" result="s2"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="s2"/></feMerge></filter>
-<filter id="paperSoft" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="9" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .5  0 0 0 0 .42  0 0 0 0 .3  0 0 0 -3.4 1.35" result="spec"/><feComposite in="spec" in2="SourceAlpha" operator="in" result="s2"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="s2"/></feMerge></filter>
+<filter id="paper" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="9" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .23  0 0 0 0 .16  0 0 0 0 .24  0 0 0 -2.2 1.25" result="spec"/><feComposite in="spec" in2="SourceAlpha" operator="in" result="s2"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="s2"/></feMerge></filter>
+<filter id="paperSoft" x="-4%" y="-4%" width="108%" height="108%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="9" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .5  0 0 0 0 .42  0 0 0 0 .3  0 0 0 -3.4 1.35" result="spec"/><feComposite in="spec" in2="SourceAlpha" operator="in" result="s2"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="s2"/></feMerge></filter>
 <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><line x1="0" y1="0" x2="0" y2="7" stroke="${C.ink}" stroke-width="1.3" opacity=".42"/></pattern>
 <pattern id="hatch2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-32)"><line x1="0" y1="0" x2="0" y2="5" stroke="${C.ink}" stroke-width="1" opacity=".3"/></pattern>
 </defs>`;
@@ -57,11 +57,15 @@ function win(x, y, w, h, lit = r() > 0.5) {
   add(`<path d="M${f(x)} ${f(y + h)}V${f(y + w / 2)}a${f(w / 2)} ${f(w / 2)} 0 0 1 ${f(w)} 0V${f(y + h)}z" fill="${lit ? C.gold : C.indigoDk}" stroke="${C.ink}" stroke-width="1.6" ${lit ? 'opacity=".95"' : ""}/>`);
   add(`<path d="M${f(x + w / 2)} ${f(y + 2)}V${f(y + h)}M${f(x)} ${f(y + h * 0.55)}H${f(x + w)}" stroke="${C.ink}" stroke-width="1" opacity=".55"/>`);
 }
+let domeId = 0;
 function dome(cx, base, rr, fill, o = {}) {
   const h = rr * (o.tall ?? 0.9);
-  add(`<path d="M${f(cx - rr)} ${f(base)}C${f(cx - rr)} ${f(base - h * 1.25)} ${f(cx - rr * 0.35)} ${f(base - h * 1.5)} ${f(cx)} ${f(base - h * 1.7)}C${f(cx + rr * 0.35)} ${f(base - h * 1.5)} ${f(cx + rr)} ${f(base - h * 1.25)} ${f(cx + rr)} ${f(base)}z" fill="${fill}" ${ST}/>`);
-  for (const k of [-0.5, 0, 0.5]) add(`<path d="M${f(cx + k * rr)} ${f(base)}C${f(cx + k * rr * 1.1)} ${f(base - h * 0.9)} ${f(cx + k * rr * 0.5)} ${f(base - h * 1.4)} ${f(cx)} ${f(base - h * 1.68)}" fill="none" stroke="${C.ink}" stroke-width="1.2" opacity=".45"/>`);
-  add(`<rect x="${f(cx + rr * 0.35)}" y="${f(base - h * 1.4)}" width="${f(rr * 0.65)}" height="${f(h * 1.4)}" fill="url(#hatch)" opacity=".8" clip-path="none"/>`);
+  const d = `M${f(cx - rr)} ${f(base)}C${f(cx - rr)} ${f(base - h * 1.25)} ${f(cx - rr * 0.35)} ${f(base - h * 1.5)} ${f(cx)} ${f(base - h * 1.7)}C${f(cx + rr * 0.35)} ${f(base - h * 1.5)} ${f(cx + rr)} ${f(base - h * 1.25)} ${f(cx + rr)} ${f(base)}z`;
+  const id = `dm${domeId++}`;
+  add(`<clipPath id="${id}"><path d="${d}"/></clipPath>`);
+  add(`<path d="${d}" fill="${fill}" ${ST}/>`);
+  for (const k of [-0.5, 0, 0.5]) add(`<path d="M${f(cx + k * rr)} ${f(base)}C${f(cx + k * rr * 1.1)} ${f(base - h * 0.9)} ${f(cx + k * rr * 0.5)} ${f(base - h * 1.4)} ${f(cx)} ${f(base - h * 1.68)}" fill="none" stroke="${C.ink}" stroke-width="1.2" opacity=".45" clip-path="url(#${id})"/>`);
+  add(`<rect x="${f(cx + rr * 0.35)}" y="${f(base - h * 1.75)}" width="${f(rr * 0.7)}" height="${f(h * 1.76)}" fill="url(#hatch)" opacity=".8" clip-path="url(#${id})"/>`);
   add(`<path d="M${f(cx)} ${f(base - h * 1.7)}v${f(-rr * 0.5)}" stroke="${C.ink}" stroke-width="2.4"/><circle cx="${f(cx)}" cy="${f(base - h * 1.7 - rr * 0.55)}" r="${f(Math.max(3, rr * 0.12))}" fill="${C.gold}" ${ST}/>`);
 }
 function palm(x, base, h, lean = 0) {
@@ -101,11 +105,11 @@ const sky = () => {
 
   // sea-link bridge, behind the hotel
   add(`<g>`);
-  add(`<rect x="610" y="${G - 38}" width="400" height="9" fill="${C.indigo}" ${ST}/>`);
-  add(`<path d="M610 ${G - 29}H1010" stroke="${C.ink}" stroke-width="1" opacity=".5"/>`);
-  for (let x = 640; x < 1000; x += 40) add(`<path d="M${x} ${G - 29}v26" stroke="${C.ink}" stroke-width="3"/>`);
+  add(`<rect x="700" y="${G - 38}" width="330" height="9" fill="${C.indigo}" ${ST}/>`);
+  add(`<path d="M700 ${G - 29}H1030" stroke="${C.ink}" stroke-width="1" opacity=".5"/>`);
+  for (let x = 880; x < 1000; x += 40) add(`<path d="M${x} ${G - 29}v26" stroke="${C.ink}" stroke-width="3"/>`);
   add(`<path d="M885 ${G - 38}L898 70L911 ${G - 38}" fill="${C.magenta}" ${ST}/><path d="M898 70V${G - 38}" stroke="${C.ink}" stroke-width="2"/><path d="M890 150h16M888 210h20" stroke="${C.ink}" stroke-width="3"/>`);
-  for (let i = 0; i < 8; i++) { add(`<path d="M898 ${96 + i * 15}L${760 - i * 20 + (i % 2) * 6} ${G - 38}" stroke="${C.ink}" stroke-width="1.5" fill="none"/><path d="M898 ${96 + i * 15}L${1010 - (i % 2) * 6} ${G - 38 - 0}" stroke="${C.ink}" stroke-width="1.5" fill="none"/>`); }
+  for (let i = 0; i < 8; i++) { add(`<path d="M898 ${96 + i * 15}L${790 - i * 14 + (i % 2) * 6} ${G - 38}" stroke="${C.ink}" stroke-width="1.5" fill="none"/><path d="M898 ${96 + i * 15}L${1022 - (i % 2) * 6} ${G - 38}" stroke="${C.ink}" stroke-width="1.5" fill="none"/>`); }
   add(`</g>`);
 
   // grand hotel (right)
@@ -131,7 +135,7 @@ const sky = () => {
   add(`<circle cx="218" cy="105" r="16" fill="${C.cream}" ${ST}/><circle cx="218" cy="105" r="12" fill="none" stroke="${C.ink}" stroke-width="1" opacity=".5"/><path d="M218 105v-10M218 105l8 4" stroke="${C.ink}" stroke-width="2.4"/>`);
   for (let i = 0; i < 4; i++) { win(198 + (i % 2) * 24, 148 + Math.floor(i / 2) * 50, 12, 28, i === 1); }
   add(`<path d="M190 80L218 18L246 80z" fill="${C.teal}" ${ST}/><path d="M218 18L233 80L246 80z" fill="url(#hatch)"/><path d="M218 18v-12" stroke="${C.ink}" stroke-width="2.4"/><circle cx="218" cy="5" r="4.5" fill="${C.gold}" ${ST}/>`);
-  for (const x of [120, 292]) { block(x - 8, 300, 26, 42, C.stone, { courses: 14 }); dome(x + 5, 300, 13, C.teal); }
+  for (const x of [118, 292]) { block(x, 300, 26, 42, C.stone, { courses: 14 }); dome(x + 13, 300, 13, C.teal); }
   add(`</g>`);
 
   // the great gateway (centre)
@@ -153,16 +157,17 @@ const sky = () => {
   for (const cx of [376, 624]) { win(cx - 6, 292, 12, 30, true); win(cx - 6, 340, 12, 30, false); }
   add(`</g>`);
 
-  // sea and boat
-  add(`<path d="M600 ${G - 26}Q640 ${G - 32} 700 ${G - 26}T820 ${G - 26}T940 ${G - 26}T1010 ${G - 26}V${G}H600z" fill="${C.water}" ${ST} opacity=".95"/>`);
-  for (let i = 0; i < 9; i++) add(`<path d="M${860 + i * 18} ${G - 14 + (i % 3) * 5}q6 -5 12 0" stroke="#fff" stroke-width="1.6" opacity=".65" fill="none"/>`);
-  add(`<g><path d="M770 ${G - 14}h60l-10 14h-42z" fill="${C.clay}" ${ST}/><path d="M800 ${G - 14}V${G - 66}" stroke="${C.ink}" stroke-width="2.4"/><path d="M800 ${G - 64}Q826 ${G - 40} 826 ${G - 18}H802z" fill="${C.cream}" ${ST}/><path d="M804 ${G - 56}Q818 ${G - 38} 819 ${G - 24}" stroke="${C.ink}" stroke-width="1" opacity=".4" fill="none"/></g>`);
+  // sea beyond the hotel, a boat on it, and a green headland where the sea link lands
+  add(`<path d="M858 ${G - 26}Q900 ${G - 31} 940 ${G - 26}T1000 ${G - 26}V${G}H858z" fill="${C.water}" ${ST} opacity=".95"/>`);
+  for (let i = 0; i < 6; i++) add(`<path d="M${868 + i * 20} ${G - 12 + (i % 3) * 4}q6 -5 12 0" stroke="#fff" stroke-width="1.6" opacity=".65" fill="none"/>`);
+  add(`<g><path d="M902 ${G - 14}h56l-9 13h-38z" fill="${C.clay}" ${ST}/><path d="M930 ${G - 14}V${G - 60}" stroke="${C.ink}" stroke-width="2.4"/><path d="M930 ${G - 58}Q954 ${G - 36} 954 ${G - 17}H932z" fill="${C.cream}" ${ST}/><path d="M934 ${G - 50}Q946 ${G - 34} 947 ${G - 22}" stroke="${C.ink}" stroke-width="1" opacity=".4" fill="none"/></g>`);
+  add(`<path d="M988 ${G + 6}Q996 ${G - 58} 1040 ${G - 66}Q1096 ${G - 70} 1130 ${G + 6}z" fill="${C.olive}" ${ST}/>`);
+  for (let i = 0; i < 14; i++) add(`<path d="M${f(1000 + r() * 110)} ${f(G - 52 + r() * 50)}l2 -7M${f(1003 + r() * 110)} ${f(G - 52 + r() * 50)}l-1 -6" stroke="${C.ink}" stroke-width="1.1" opacity=".38"/>`);
 
   // trees and plants in front
-  palm(88, G + 4, 215, -26); palm(318, G + 4, 175, 22); palm(676, G + 4, 190, -18); palm(980, G + 4, 160, 12);
-  tree(60, G + 8, 70, C.oliveDk); tree(344, G + 10, 56, C.olive);
+  palm(70, G + 4, 215, -26); palm(676, G + 4, 190, -18); palm(1040, G - 56, 150, 14);
+  tree(34, G + 8, 70, C.oliveDk);
   bush(150, G + 10, 54); bush(268, G + 10, 46, C.olive); bush(450, G + 12, 60); bush(560, G + 12, 56, C.olive); bush(730, G + 12, 50); bush(900, G + 12, 56, C.olive);
-  lamp(330, G + 6); lamp(670, G + 6);
 };
 
 // ground and hills (drawn in front of everything else)
@@ -300,5 +305,63 @@ for (const [x, len, col, y0] of [[400, 70, C.red, 10], [800, 70, C.red, 10], [15
 <path d="M${x} ${y0 + len + 18}v12" stroke="${C.gold}" stroke-width="2.2"/><circle cx="${x}" cy="${y0 + len + 33}" r="3.4" fill="${C.gold}" stroke="${C.ink}" stroke-width="1"/></g>\n`;
 }
 save("garland.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GW} ${GH}" preserveAspectRatio="xMidYMin meet" aria-hidden="true">${defs}\n<g filter="url(#paper)">${swags}</g>\n${s}</svg>\n`);
+
+
+// ---------- spot illustrations for the app pages (200 x 150) ----------
+function spot(name, label, body) {
+  s = "";
+  add(`<g filter="url(#paper)"><g filter="url(#wob)">`);
+  body();
+  add(`</g></g>`);
+  save(name, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" role="img" aria-label="${label}">${defs}\n${s}</svg>\n`);
+}
+const book = (x, y, w, h) => {
+  // open bahi-khata: red cloth cover, two cream pages with ruled lines, a marigold ribbon
+  add(`<path d="M${x - 6} ${y + 8}L${x + w / 2} ${y + 14}L${x + w + 6} ${y + 8}V${y + h + 8}L${x + w / 2} ${y + h + 14}L${x - 6} ${y + h + 8}z" fill="${C.red}" ${ST}/>`);
+  add(`<path d="M${x} ${y}Q${x + w / 4} ${y - 6} ${x + w / 2} ${y + 6}V${y + h}Q${x + w / 4} ${y + h - 6} ${x} ${y + h}z" fill="${C.cream}" ${ST}/>`);
+  add(`<path d="M${x + w} ${y}Q${x + (w * 3) / 4} ${y - 6} ${x + w / 2} ${y + 6}V${y + h}Q${x + (w * 3) / 4} ${y + h - 6} ${x + w} ${y + h}z" fill="${C.cream}" ${ST}/>`);
+  for (let i = 0; i < 6; i++) { const yy = y + 16 + i * ((h - 22) / 6); add(`<path d="M${x + 8} ${f(yy)}H${x + w / 2 - 8}M${x + w / 2 + 8} ${f(yy)}H${x + w - 8}" stroke="${C.ink}" stroke-width="1.2" opacity=".4"/>`); }
+  add(`<path d="M${x + w / 2} ${y + 6}V${y + h + 22}l-5 -7l-5 7V${y + h}" fill="${C.gold}" ${ST}/>`);
+  add(`<rect x="${x + w / 2 + 10}" y="${y + 6}" width="${w / 2 - 6}" height="${h - 12}" fill="url(#hatch)" opacity=".6"/>`);
+};
+spot("spot-supplier.svg", "Drawing of an open red ledger book with a marigold ribbon, an ink pot and a pen", () => {
+  book(34, 36, 120, 76);
+  add(`<path d="M160 100h22v22a8 8 0 0 1 -8 8h-6a8 8 0 0 1 -8 -8z" fill="${C.indigo}" ${ST}/><path d="M166 100v-6h10v6" fill="${C.creamDk}" ${ST}/>`);
+  add(`<path d="M172 92L188 40l6 4l-10 50z" fill="${C.cream}" ${ST}/><path d="M188 40l6 4l4 -10z" fill="${C.clay}" ${ST}/>`);
+  add(`<circle cx="26" cy="46" r="7" fill="${C.gold}" ${ST}/><circle cx="26" cy="46" r="2.6" fill="${C.clay}"/><path d="M26 53v12" stroke="${C.oliveDk}" stroke-width="2.4"/>`);
+});
+spot("spot-investor.svg", "Drawing of stacked coins with a green sprout growing beside them", () => {
+  const coin = (cx, cy, rr) => { add(`<ellipse cx="${cx}" cy="${cy + 8}" rx="${rr}" ry="${rr * 0.4}" fill="${C.clay}" ${ST}/><rect x="${cx - rr}" y="${cy}" width="${rr * 2}" height="8" fill="${C.clay}" stroke="none"/><path d="M${cx - rr} ${cy}v8M${cx + rr} ${cy}v8" stroke="${C.ink}" stroke-width="2.2"/><ellipse cx="${cx}" cy="${cy}" rx="${rr}" ry="${rr * 0.4}" fill="${C.gold}" ${ST}/><ellipse cx="${cx}" cy="${cy}" rx="${rr * 0.62}" ry="${rr * 0.24}" fill="none" stroke="${C.ink}" stroke-width="1.2" opacity=".55"/>`); };
+  for (let i = 0; i < 5; i++) coin(70, 112 - i * 11, 34);
+  for (let i = 0; i < 3; i++) coin(128, 112 - i * 11, 28);
+  add(`<ellipse cx="116" cy="40" rx="16" ry="6" fill="${C.gold}" ${ST} transform="rotate(-18 116 40)"/>`);
+  add(`<path d="M164 122V70" stroke="${C.oliveDk}" stroke-width="3.4" fill="none"/>`);
+  add(`<path d="M164 90q-26 -4 -30 -26q22 -2 30 26z" fill="${C.olive}" ${ST}/><path d="M164 76q24 -2 30 -26q-24 -2 -30 26z" fill="${C.teal}" ${ST}/>`);
+  add(`<path d="M150 124h30l-4 14h-22z" fill="${C.stone}" ${ST}/>`);
+});
+spot("spot-debtor.svg", "Drawing of a small shop with a striped awning, a door and a hanging sign", () => {
+  add(`<rect x="38" y="62" width="124" height="70" fill="${C.cream}" ${ST}/><rect x="124" y="63" width="37" height="68" fill="url(#hatch)" opacity=".7"/>`);
+  for (let i = 0; i < 8; i++) add(`<path d="M${38 + i * 15.5} 40h15.5l4 24h-23.5z" fill="${i % 2 ? C.cream : C.red}" ${ST}/>`);
+  add(`<path d="M34 40h132" stroke="${C.ink}" stroke-width="3"/>`);
+  add(`<path d="M46 132V92a14 14 0 0 1 28 0V132z" fill="${C.indigoDk}" ${ST}/><circle cx="68" cy="112" r="2.4" fill="${C.gold}"/>`);
+  add(`<rect x="90" y="84" width="58" height="34" fill="${C.indigo}" ${ST}/><path d="M119 84V118M90 101H148" stroke="${C.gold}" stroke-width="1.6" opacity=".8"/>`);
+  add(`<path d="M44 132H156" stroke="${C.ink}" stroke-width="3"/>`);
+  add(`<path d="M150 26V40" stroke="${C.ink}" stroke-width="2"/><rect x="138" y="14" width="28" height="14" rx="2" fill="${C.gold}" ${ST}/><path d="M143 21h18" stroke="${C.ink}" stroke-width="1.6"/>`);
+  for (const [x, c] of [[22, C.olive], [178, C.oliveDk]]) add(`<path d="M${x - 10} 132q-2 -26 10 -34q12 8 10 34z" fill="${c}" ${ST}/>`);
+});
+spot("spot-attester.svg", "Drawing of a rolled parchment with a red wax seal and a ribbon", () => {
+  add(`<path d="M44 36h112q8 0 8 8v62q0 10 -10 10H54q-10 0 -10 -10z" fill="${C.cream}" ${ST}/>`);
+  add(`<rect x="44" y="26" width="120" height="12" rx="6" fill="${C.stoneLt}" ${ST}/><rect x="44" y="108" width="120" height="12" rx="6" fill="${C.stoneLt}" ${ST}/>`);
+  for (let i = 0; i < 4; i++) add(`<path d="M62 ${54 + i * 11}H${i === 3 ? 100 : 146}" stroke="${C.ink}" stroke-width="1.6" opacity=".45"/>`);
+  add(`<g transform="translate(130 100)"><path d="M-14 8l-8 28l12 -8l6 12l6 -28z" fill="${C.magenta}" ${ST}/><path d="M6 8l8 28l-12 -8l-6 12l-6 -28z" fill="${C.gold}" ${ST}/><circle r="22" fill="${C.red}" ${ST}/><circle r="15" fill="none" stroke="${C.ink}" stroke-width="1.6" opacity=".6"/><path d="M0 -9l3 7h8l-6 5l2 8l-7 -4l-7 4l2 -8l-6 -5h8z" fill="${C.gold}" stroke="${C.ink}" stroke-width="1"/></g>`);
+  add(`<path d="M40 128q-8 10 6 14M164 128q8 10 -6 14" fill="none" stroke="${C.oliveDk}" stroke-width="2.4"/>`);
+});
+spot("spot-empty.svg", "Drawing of an empty ledger page with a small lamp beside it", () => {
+  add(`<rect x="34" y="30" width="92" height="94" rx="4" fill="${C.cream}" ${ST}/><path d="M34 30v94" stroke="${C.red}" stroke-width="9"/>`);
+  for (let i = 0; i < 6; i++) add(`<path d="M52 ${50 + i * 12}H114" stroke="${C.ink}" stroke-width="1.4" stroke-dasharray="3 5" opacity=".5"/>`);
+  add(`<rect x="82" y="88" width="46" height="38" fill="url(#hatch2)" opacity=".5"/>`);
+  add(`<path d="M150 64h26l-5 44h-16z" fill="${C.gold}" ${ST}/><path d="M156 64q7 -22 14 0" fill="none" stroke="${C.ink}" stroke-width="2"/><rect x="146" y="108" width="34" height="9" rx="3" fill="${C.clay}" ${ST}/><path d="M163 72q-5 12 0 24q5 -12 0 -24z" fill="${C.cream}" opacity=".9"/>`);
+  add(`<circle cx="163" cy="40" r="3" fill="${C.gold}"/><path d="M163 46v-6M150 46l-4 -4M176 46l4 -4" stroke="${C.gold}" stroke-width="2" stroke-linecap="round"/>`);
+});
 
 console.log("wrote art to web/src/art/");
