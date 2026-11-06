@@ -174,13 +174,58 @@ contract AttesterRegistryTest is Test {
         att.register(high, highSig);
         AttesterRegistry.Eligibility memory low = _cred(investor, uint64(block.timestamp + 1 days), keccak256("low"));
         low.tier = 1;
-        att.register(low, _sign(attesterPk, att.eligibilityDigest(low)));
+        bytes memory lowSig = _sign(attesterPk, att.eligibilityDigest(low));
+        vm.prank(investor);
+        att.register(low, lowSig);
 
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(AttesterRegistry.CredentialSuperseded.selector, high.credId));
         att.register(high, highSig);
         (, uint8 tier) = att.eligibility(investor);
         assertEq(tier, 1, "the downgrade stands");
+    }
+
+    /// Red-team 2: a third party replaying an older still-valid credential must neither downgrade the subject nor
+    /// burn the newer credential.
+    function test_aStrangerCannotReplayAnOlderCredentialOverANewerOne() public {
+        AttesterRegistry.Eligibility memory older = _cred(investor, uint64(block.timestamp + 1 days), keccak256("older"));
+        older.tier = 1;
+        bytes memory olderSig = _sign(attesterPk, att.eligibilityDigest(older));
+        AttesterRegistry.Eligibility memory newer = _cred(investor, uint64(block.timestamp + 2 days), keccak256("newer"));
+        newer.tier = 3;
+        att.register(newer, _sign(attesterPk, att.eligibilityDigest(newer)));
+
+        vm.prank(stranger);
+        vm.expectRevert(AttesterRegistry.ReplacementNeedsSubjectOrAttester.selector);
+        att.register(older, olderSig);
+
+        (, uint8 tier) = att.eligibility(investor);
+        assertEq(tier, 3, "the newer credential stays current");
+        assertFalse(att.superseded(attester, newer.credId), "and is not burned");
+    }
+
+    function test_theSubjectOrTheAttesterMayReplaceAndAStrangerMayStillGiveTheFirstCredential() public {
+        // first credential: anyone may submit it
+        AttesterRegistry.Eligibility memory first = _cred(investor, uint64(block.timestamp + 1 days), keccak256("first"));
+        bytes memory firstSig = _sign(attesterPk, att.eligibilityDigest(first));
+        vm.prank(stranger);
+        att.register(first, firstSig);
+
+        AttesterRegistry.Eligibility memory second = _cred(investor, uint64(block.timestamp + 1 days), keccak256("second"));
+        second.tier = 3;
+        bytes memory secondSig = _sign(attesterPk, att.eligibilityDigest(second));
+        vm.prank(attester);
+        att.register(second, secondSig);
+        (, uint8 tier) = att.eligibility(investor);
+        assertEq(tier, 3);
+
+        AttesterRegistry.Eligibility memory third = _cred(investor, uint64(block.timestamp + 1 days), keccak256("third"));
+        third.tier = 1;
+        bytes memory thirdSig = _sign(attesterPk, att.eligibilityDigest(third));
+        vm.prank(investor);
+        att.register(third, thirdSig);
+        (, tier) = att.eligibility(investor);
+        assertEq(tier, 1);
     }
 
     function test_resubmittingTheCurrentCredentialChangesNothing() public {

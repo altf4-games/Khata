@@ -19,6 +19,7 @@ contract AttesterRegistry is Ownable2Step, EIP712 {
     error CredentialExpired(uint64 validUntil);
     error CredentialIsRevoked(bytes32 credId);
     error CredentialSuperseded(bytes32 credId);
+    error ReplacementNeedsSubjectOrAttester();
     error OwnershipCannotBeRenounced();
 
     enum Reason {
@@ -126,8 +127,13 @@ contract AttesterRegistry is Ownable2Step, EIP712 {
         if (superseded[signer][c.credId]) revert CredentialSuperseded(c.credId);
 
         // The credential being replaced can never come back, so an old signed copy cannot be replayed over a newer one.
+        // Replacing one needs the subject or the signing attester: a stranger holding an older, still-valid signed copy
+        // (they are published on Arkiv) could otherwise downgrade the subject and burn the newer credential.
         Credential memory old = credentialOf[c.subject];
-        if (old.attester != address(0) && old.credId != c.credId) superseded[old.attester][old.credId] = true;
+        if (old.attester != address(0) && old.credId != c.credId) {
+            if (msg.sender != c.subject && msg.sender != signer) revert ReplacementNeedsSubjectOrAttester();
+            superseded[old.attester][old.credId] = true;
+        }
         credentialOf[c.subject] = Credential(signer, c.tier, c.jurisdiction, c.validUntil, c.credId);
         emit CredentialRegistered(c.subject, signer, c.credId, c.validUntil);
     }

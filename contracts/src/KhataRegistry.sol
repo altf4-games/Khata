@@ -21,6 +21,7 @@ contract KhataRegistry is Ownable2Step {
     error UnknownKey(string kid);
     error KeyIsRetired(string kid);
     error InvalidKey();
+    error ModulusAlreadyRegistered();
     error OwnershipCannotBeRenounced();
     error InvalidSignature();
     error IrnAlreadyFinanced(bytes32 nullifier);
@@ -79,6 +80,7 @@ contract KhataRegistry is Ownable2Step {
     }
 
     event KeyAdded(bytes32 indexed kidHash, string kid, bool demo);
+    event ZkVerifierSet(address indexed previous, address indexed verifier);
     event KeyRetired(bytes32 indexed kidHash, string kid);
     event InvoiceBound(
         bytes32 indexed nullifier, bytes32 indexed irn, bytes32 indexed kidHash, address binder, uint256 valuePaise
@@ -124,8 +126,10 @@ contract KhataRegistry is Ownable2Step {
 
         bytes32 h = keccak256(bytes(kid));
         if (_keys[h].exists) revert KeyAlreadyRegistered(kid);
+        bytes32 mh = keccak256(modulus);
+        if (_kidByModulus[mh] != bytes32(0)) revert ModulusAlreadyRegistered();
         _keys[h] = Key(modulus, exponent, true, true, demo);
-        _kidByModulus[keccak256(modulus)] = h;
+        _kidByModulus[mh] = h;
         emit KeyAdded(h, kid, demo);
     }
 
@@ -221,11 +225,14 @@ contract KhataRegistry is Ownable2Step {
 
     /// @notice Turns on binding by proof. Set once the verifier for the circuit's verification key is deployed.
     function setZkVerifier(address verifier) external onlyOwner {
+        emit ZkVerifierSet(address(zkVerifier), verifier);
         zkVerifier = IProofVerifier(verifier);
     }
 
-    /// @notice Binds an invoice from a proof instead of the token: the token never goes on chain, so the IRN, the other
-    ///         invoice fields and the buyer stay private; only the nullifier, the seller's GSTIN hash and the value are public.
+    /// @notice Binds an invoice from a proof instead of the token: the token never goes on chain, so the buyer and the other
+    ///         invoice fields stay private; only the nullifier, the seller's GSTIN hash and the value are public. The IRN is not a
+    ///         secret against a guesser: it is a hash of public-ish fields (seller GSTIN, year, type, number), so anyone can test
+    ///         guessed invoice numbers against the public nullifier.
     ///         The proof names the caller as its owner, so nobody else can submit it. The IRN is stored as zero.
     function bindInvoiceZk(bytes calldata proof, bytes32[] calldata publicInputs) external returns (bytes32 nullifier) {
         if (address(zkVerifier) == address(0)) revert ZkNotEnabled();

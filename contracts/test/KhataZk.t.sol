@@ -189,6 +189,38 @@ contract KhataZkTest is Test {
         fresh.bindInvoiceZk(_proof("nic-sample"), _inputs("nic-sample"));
     }
 
+    event ZkVerifierSet(address indexed previous, address indexed verifier);
+
+    function test_changingTheVerifierIsAnnounced() public {
+        vm.expectEmit(true, true, false, false);
+        emit ZkVerifierSet(address(verifier), address(0xBEEF));
+        vm.prank(owner);
+        reg.setZkVerifier(address(0xBEEF));
+    }
+
+    function test_addingTheSameModulusUnderAnotherKidIsRefused() public {
+        bytes memory nic = vm.parseBytes(vm.readFile("contracts/test/fixtures/nic-sample.modulus.hex"));
+        vm.prank(owner);
+        vm.expectRevert(KhataRegistry.ModulusAlreadyRegistered.selector);
+        reg.addKey("ANOTHER-KID", nic, E, true);
+        // the proof still binds: the first registration was not overwritten
+        vm.prank(zkSeller);
+        reg.bindInvoiceZk(_proof("nic-sample"), _inputs("nic-sample"));
+    }
+
+    /// Front-running defence: a rival who is the attested seller for the same GSTIN cannot swap the proof's owner input to
+    /// themselves, because the owner is a public input the proof is bound to.
+    function test_aRivalCannotRewriteTheOwnerInputOfSomeoneElsesProof() public {
+        _bindSeller(NIC_SELLER, rival);
+        bytes32[] memory inputs = _inputs("nic-sample");
+        inputs[18] = bytes32(uint256(uint160(rival)));
+        bytes memory proof = _proof("nic-sample");
+        vm.prank(rival);
+        vm.expectRevert();
+        reg.bindInvoiceZk(proof, inputs);
+        assertFalse(reg.isBound(SAMPLE_NULLIFIER));
+    }
+
     function test_onlyTheOwnerSetsTheVerifier() public {
         vm.prank(rival);
         vm.expectRevert();

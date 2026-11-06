@@ -489,7 +489,7 @@ function actions(r: Inspection) {
   if (a.kind === "done") {
     wrap.append(el("div", { class: "banner ok" }, el("span", { class: "ic" }, "✓"), el("div", {},
       el("strong", {}, a.privately ? "Invoice bound by proof" : "Invoice bound on-chain"),
-      a.privately ? el("p", {}, "The chain recorded only a one-way ID for the invoice, the seller's GSTIN hash and the value. The IRN, the buyer and the document were not written to it. (Checking the QR earlier asked the node to read it, as a call that is not recorded; with Anon-RPC on, the node cannot link that to you.)") : null,
+      a.privately ? el("p", {}, "The chain recorded only a one-way ID for the invoice, the seller's GSTIN hash and the value. The IRN, the buyer and the document were not written to it. The one-way ID is not a lock against guessing: someone who guesses the seller's GSTIN and the invoice number can confirm that this invoice was financed. (Checking the QR earlier asked the node to read it, as a call that is not recorded; with Anon-RPC on, the node cannot link that to you.)") : null,
       el("p", {}, `Used ${a.gas.toLocaleString("en-IN")} gas. `, el("a", { href: txUrl(a.hash), target: "_blank", rel: "noopener" }, "View the transaction")))));
   }
   return wrap;
