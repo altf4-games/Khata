@@ -6,6 +6,7 @@ import { AnonRpcWorker } from "@anon-rpc/browser-harness";
 import { http, type Transport } from "viem";
 import { Traffic } from "./traffic";
 import { checkPin } from "./pin";
+import { readParams } from "./params";
 
 /** The tor-js anon-client's on-chain specifier (Ethereum mainnet). Its bytes are checked against `workerHash()` before they run. */
 const DEFAULT_SPECIFIER = "0x700dA3193D35fA54Cd3fBf29B66f2a2A0385659e";
@@ -25,7 +26,7 @@ export type AnonState =
   | { kind: "failed"; why: string }
   | { kind: "direct" }; // the user's explicit choice (or ?reads=direct)
 
-const params = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
+const params = readParams(typeof location === "undefined" ? "" : location.search, typeof location === "undefined" ? "localhost" : location.hostname);
 const gateway = params.get("anonGateway") ?? DEMO_GATEWAY;
 /** After this long still starting, the page offers a choice (a test can shorten it). */
 export const slowAfterMs = Number(params.get("anonSlowAfter") ?? 45_000);

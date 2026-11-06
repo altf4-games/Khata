@@ -20,7 +20,7 @@ const abi = parseAbi([
 const domain = { name: "KhataAttesters", version: "1", chainId: 1874, verifyingContract: dep.AttesterRegistry } as const;
 const now = Number((await wc.getBlock()).timestamp);
 
-const ark = arkivClients({ accessKey: loadEnv().ARKIV_ACCESS_KEY });
+const ark = arkivClients({ accessKey: loadEnv().ARKIV_ACCESS_KEY, transport: http() });
 const found = await findCredentials(ark.pub, { subject: who, notBefore: now });
 console.log(`Arkiv holds ${found.length} unexpired credential(s) for ${who}`);
 let accepted = 0;

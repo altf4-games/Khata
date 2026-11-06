@@ -41,11 +41,11 @@ export const Listing = defineSchema("khata.listing", {
 // ---------- clients ----------
 export interface ArkivConfig {
   accessKey?: string;
-  transport?: Transport; // reads and writes go through this; Anon-RPC plugs in here for reads
+  transport: Transport; // required: a browser caller must choose it (Anon-RPC for reads), so no default can bypass it
 }
-export function arkivClients(cfg: ArkivConfig = {}) {
+export function arkivClients(cfg: ArkivConfig) {
   const chain = rabdi({ accessKey: cfg.accessKey ?? "" });
-  const transport = cfg.transport ?? http();
+  const transport = cfg.transport;
   return {
     chain,
     pub: createPublicClient({ chain, transport }),

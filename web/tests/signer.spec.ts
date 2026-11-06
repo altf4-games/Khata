@@ -139,3 +139,79 @@ test("never signs a raw message, and rejects malformed requests", async () => {
   expect((await handleSign("nonsense", env, deps)).status).toBe(400);
   expect((await handleSign(wire.encode({ wallet: "supplier", kind: "transaction" }), env, deps)).status).toBe(400);
 });
+
+// ---- second red-team pass ----
+import { makeLiveDeps, RateLimiter } from "../../api/_signer";
+import registryAbi from "../../web/src/registry-abi.json" with { type: "json" };
+import factoryAbi from "../../web/src/factory-abi.json" with { type: "json" };
+import attestersAbi from "../../web/src/attesters-abi.json" with { type: "json" };
+import { toFunctionSelector } from "viem";
+
+const selOf = (abi: any, name: string) => toFunctionSelector(abi.find((i: any) => i.type === "function" && i.name === name));
+const call = (to: string, abi: any, name: string) => sign({ ...base, to, data: (selOf(abi, name) + "00".repeat(64)) as Hex });
+
+test("the project contracts can be called only through the functions the app uses", async () => {
+  for (const [to, abi, name] of [[st.KhataRegistry, registryAbi, "bindInvoice"], [st.KhataRegistry, registryAbi, "bindInvoiceZk"], [st.KhataRegistry, registryAbi, "registerSeller"], [st.KhataFactory, factoryAbi, "createNote"], [st.AttesterRegistry, attestersAbi, "register"], [st.AttesterRegistry, attestersAbi, "revoke"]] as const)
+    expect((await call(to, abi, name)).status, name).toBe(200);
+  for (const [to, abi, name] of [[st.KhataRegistry, registryAbi, "addKey"], [st.KhataRegistry, registryAbi, "setZkVerifier"], [st.KhataRegistry, registryAbi, "retireKey"], [st.KhataRegistry, registryAbi, "transferOwnership"], [st.AttesterRegistry, attestersAbi, "addAttester"], [st.AttesterRegistry, attestersAbi, "removeAttester"], [st.AttesterRegistry, attestersAbi, "acceptOwnership"]] as const)
+    expect((await call(to, abi, name)).status, name).toBe(403);
+  expect((await sign({ ...base, to: st.KhataRegistry, data: "0x" })).status).toBe(403);
+});
+
+const eligibilityTypes = { Eligibility: [{ name: "subject", type: "address" }, { name: "tier", type: "uint8" }, { name: "jurisdiction", type: "uint16" }, { name: "validUntil", type: "uint64" }, { name: "credId", type: "bytes32" }] };
+const attester = (types: object, primaryType: string, message: object) => signTyped("attester", attDomain, types, primaryType, message);
+const goodEl = () => ({ subject: wallets.investor, tier: 2, jurisdiction: 356, validUntil: soon(), credId });
+
+test("typed data must have exactly the structure the contract hashes, with exactly its fields", async () => {
+  expect((await attester(eligibilityTypes, "Eligibility", goodEl())).status).toBe(200);
+  // an extra field in the declared types
+  expect((await attester({ Eligibility: [...eligibilityTypes.Eligibility, { name: "extra", type: "uint256" }] }, "Eligibility", { ...goodEl(), extra: 1n })).status).toBe(403);
+  // an extra message key
+  expect((await attester(eligibilityTypes, "Eligibility", { ...goodEl(), extra: 1 })).status).toBe(403);
+  // a missing message key
+  const { credId: _c, ...missing } = goodEl();
+  expect((await attester(eligibilityTypes, "Eligibility", missing)).status).toBe(403);
+  // reordered fields
+  expect((await attester({ Eligibility: [...eligibilityTypes.Eligibility].reverse() }, "Eligibility", goodEl())).status).toBe(403);
+});
+
+test("odd numbers are refused, not signed", async () => {
+  for (const bad of [{ tier: "NaN" }, { tier: -1 }, { tier: 1.5 }, { tier: "0x2" }, { validUntil: -5n }])
+    expect((await attester(eligibilityTypes, "Eligibility", { ...goodEl(), ...bad })).status, JSON.stringify(bad, (_k, v) => (typeof v === "bigint" ? String(v) : v))).toBeGreaterThanOrEqual(400);
+  const approve = encodeFunctionData({ abi: erc20, functionName: "approve", args: [NOTE, 5n] });
+  for (const bad of [{ gas: -1n }, { maxFeePerGas: -1n }, { chainId: "0x752" }, { value: [] as never }])
+    expect((await sign({ ...base, to: st.usdt, data: approve, ...bad })).status, JSON.stringify(bad, (_k, v) => (typeof v === "bigint" ? String(v) : v))).toBeGreaterThanOrEqual(400);
+});
+
+test("an oversized request is refused before anything is read", async () => {
+  const r = await sign({ ...base, to: st.KhataRegistry, data: ("0x" + "ab".repeat(200_000)) as Hex });
+  expect(r.status).toBe(413);
+});
+
+test("an unknown contract is looked up once, and a malformed address is never looked up", async () => {
+  let reads = 0;
+  const live = makeLiveDeps(async () => { reads++; return false; });
+  for (let i = 0; i < 1000; i++) expect(await live.isNote("0x2222222222222222222222222222222222222222")).toBe(false);
+  expect(reads).toBe(1);
+  expect(await live.isNote("not-an-address")).toBe(false);
+  expect(await live.isNote("0x12")).toBe(false);
+  expect(reads).toBe(1);
+});
+
+test("a caller is limited to a number of signatures a minute, and the limit is per caller", () => {
+  const rl = new RateLimiter({ perCaller: 3, total: 100, windowMs: 60_000 });
+  const t = 1_000_000;
+  expect([rl.allow("a", t), rl.allow("a", t), rl.allow("a", t), rl.allow("a", t)]).toEqual([true, true, true, false]);
+  expect(rl.allow("b", t)).toBe(true);
+  expect(rl.allow("a", t + 61_000)).toBe(true); // the window passes
+  const tiny = new RateLimiter({ perCaller: 100, total: 2, windowMs: 60_000 });
+  expect([tiny.allow("x", t), tiny.allow("y", t), tiny.allow("z", t)]).toEqual([true, true, false]);
+});
+
+import { ELIGIBILITY_TYPES, REVOCATION_TYPES, SELLER_BINDING_TYPES } from "../src/eip712";
+test("the exact shapes the signer allows are the shapes the app really sends", async () => {
+  expect((await attester(ELIGIBILITY_TYPES, "Eligibility", goodEl())).status).toBe(200);
+  expect((await attester(REVOCATION_TYPES, "Revocation", { credId })).status).toBe(200);
+  expect((await attester(SELLER_BINDING_TYPES, "SellerBinding", { gstinHash: credId, wallet: wallets.supplier, validUntil: soon(), version: 1n })).status).toBe(200);
+  expect((await attester(REVOCATION_TYPES, "Revocation", { credId: "0x12" })).status).toBe(403);
+});
