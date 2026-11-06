@@ -2,7 +2,8 @@
 // It needs only the public Arkiv schema (web/src/arkiv.ts), the attester registry's address and a Whitechain RPC.
 // Run: npx tsx scripts/second-issuer.ts <wallet address>
 import { createPublicClient, http, parseAbi, type Address } from "viem";
-import { arkivClients, findCredentials, verifyCredential } from "../web/src/arkiv";
+import { arkivClients, findCredentials, findRevocations, verifyCredential, verifyRevocation } from "../web/src/arkiv";
+import { decide } from "./lib/lender";
 // @ts-expect-error plain ESM helper
 import { deployment, loadEnv, whitechainSepolia } from "./lib/chain.mjs";
 
@@ -16,6 +17,7 @@ const wc = createPublicClient({ chain: whitechainSepolia, transport: http() });
 const abi = parseAbi([
   "function isAttester(address) view returns (bool)",
   "function eligibility(address) view returns (uint8,uint8)",
+  "function isRevoked(address,bytes32) view returns (bool)",
 ]);
 const domain = { name: "KhataAttesters", version: "1", chainId: 1874, verifyingContract: dep.AttesterRegistry } as const;
 const now = Number((await wc.getBlock()).timestamp);
@@ -25,7 +27,12 @@ const found = await findCredentials(ark.pub, { subject: who, notBefore: now });
 console.log(`Arkiv holds ${found.length} unexpired credential(s) for ${who}`);
 let accepted = 0;
 for (const c of found) {
-  const v = await verifyCredential(c, { domain, now, isAttester: async (a) => (await wc.readContract({ address: dep.AttesterRegistry, abi, functionName: "isAttester", args: [a] })) as boolean });
+  const checked = await verifyCredential(c, { domain, now, isAttester: async (a) => (await wc.readContract({ address: dep.AttesterRegistry, abi, functionName: "isAttester", args: [a] })) as boolean });
+  // a revocation counts only when its own attester signed and published it, on Arkiv or on Whitechain
+  const revs = await findRevocations(ark.pub, { attester: c.attester, credId: c.credId });
+  const onArkiv = (await Promise.all(revs.map((r) => verifyRevocation(r, { domain })))).some((x) => x.ok);
+  const onChain = (await wc.readContract({ address: dep.AttesterRegistry, abi, functionName: "isRevoked", args: [c.attester, c.credId] })) as boolean;
+  const v = decide(checked, onArkiv, onChain);
   console.log(`  ${c.credId.slice(0, 12)}…  tier ${c.tier}  expires ${new Date(c.validUntil * 1000).toISOString()}  from ${c.attester}  ->`, v.ok ? "ACCEPTED" : `rejected: ${v.reason}`);
   if (v.ok) accepted++;
 }

@@ -17,16 +17,16 @@
     "coolOffSeconds": 60,
     "microUsdtPerPaise": 1,
     "note": "Live demo uses a 60 s cool-off so the lifecycle can be shown in minutes. Unit tests cover 24 h.",
-    "AttesterRegistry": "0x5faD73a64C1822266A646aD3957449d8BaC8491c",
+    "AttesterRegistry": "0xf189C5c3Cbbe492C87001080e4D1D4ff80d0D57c",
     "deployTxs": {
-      "AttesterRegistry": "0x4b96a4b95d25dfd2351615bc08d69554c6fbf27e59354acd0025cb82723d01d1",
-      "KhataRegistry": "0x17c203875fa2c467bc08a0bdafe515bb46309fb376436304555c8b94270de077",
-      "KhataFactory": "0x13d1398e381f17fd9b82c8ae2d7f092f62b67e91c5c6f11458f63d3192a8f88e",
-      "HonkVerifier": "0x781dd2fff3ff40a7eefdaf1b3848a78c776c4a6f748f6f83af9b41914a7504b6"
+      "AttesterRegistry": "0xeec7f4f9f2653c06c8c2ce5f247a855e33e1da8ff316d01fa687e95e0aa596a9",
+      "KhataRegistry": "0x617b58b5b9660a4b10ec725539690f2a8a4f21286e89fef7e16adf37d6fb57e0",
+      "KhataFactory": "0x602af4a5917551a2aa64285c3ae7836bbc10d7ebca24332beed115b2cdeaa109",
+      "HonkVerifier": "0x3a1639c282f32ba97e0053bed3badc44311fa276238c56e970ca080683a5d3f3"
     },
-    "KhataRegistry": "0xe354DA73f8d5E3dddB2DE1fC5377Ca82c29a5764",
-    "KhataFactory": "0x245fD4EEEa1871aC8441829B148a7b7b3A32C82B",
-    "HonkVerifier": "0x74d6E6D87a75f23cA2cfec0544e597583D4EBA13"
+    "KhataRegistry": "0x815273B42AAa86Ba02f66313F2AB4961e5146400",
+    "KhataFactory": "0x0109104CAEF5aE82ecF6A6d9e4B09918F0b08480",
+    "HonkVerifier": "0xADC52A74d0693Aaf047677A47A786a415D595Fa3"
   },
   "superseded_stage2": [
     {
@@ -44,6 +44,12 @@
       "KhataRegistry": "0x32a50e36D6a11742A86Ca5bA0c96e330F67F2f34",
       "KhataFactory": "0x4cCd770d692d3d72c5B7814bec0A70c17B225921",
       "HonkVerifier": "0xe950C0ae77B4eA346a52224fd6FF321458f226C6"
+    },
+    {
+      "AttesterRegistry": "0x5faD73a64C1822266A646aD3957449d8BaC8491c",
+      "KhataRegistry": "0xe354DA73f8d5E3dddB2DE1fC5377Ca82c29a5764",
+      "KhataFactory": "0x245fD4EEEa1871aC8441829B148a7b7b3A32C82B",
+      "HonkVerifier": "0x74d6E6D87a75f23cA2cfec0544e597583D4EBA13"
     }
   ]
 }

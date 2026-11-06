@@ -7,6 +7,10 @@ import { domainSeparator, formatUnits, hexToSignature, parseAbi, parseUnits, get
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { abiOf, clients, deployment, revertName, root, wallet } from "./lib/chain.mjs";
 import { DEMO_KID, irnFor, signToken } from "./lib/irp.mjs";
+import { mergeEvidence } from "./lib/evidence.mjs";
+import { randomBytes } from "node:crypto";
+// a fresh credential id per run: a reused one may have been superseded by an earlier run and would be refused
+const freshId = () => `0x${randomBytes(32).toString("hex")}`;
 
 const dep = deployment();
 const s2 = dep.stage2;
@@ -66,6 +70,7 @@ async function expectRevert(label, role, target, abi, fn, args, errorName, recor
       const gas = fn === "bindInvoice" ? 1_500_000n : 500_000n;
       const { hash, receipt } = await send(`${label} (refused)`, role, target, abi, fn, args, { gas });
       assert.equal(receipt.status, "reverted");
+      txs[txs.length - 1].reason = errorName; // the reason the simulation gave just before; the receipt alone only says "reverted"
       ok(`${label}: refused with ${errorName}`, `tx ${link(hash)}`);
     } else ok(`${label}: refused with ${errorName}`);
     return r;
@@ -195,8 +200,8 @@ await ensureUsdt(W.INVESTOR.account.address, parseUnits("3.5", 6));
 await ensureUsdt(W.INVESTOR2.account.address, parseUnits("1", 6));
 await ensureUsdt(W.DEBTOR.account.address, parseUnits("4.2", 6));
 const run = String(Date.now());
-await registerCredential("investor", "INVESTOR", T_START + 14 * 86400, `0x${"11".repeat(31)}${run.slice(-2).padStart(2, "0")}`.slice(0, 66));
-const cred2 = `0x${"22".repeat(28)}${Date.now().toString(16).padStart(8, "0")}`.slice(0, 66);
+await registerCredential("investor", "INVESTOR", T_START + 14 * 86400, freshId());
+const cred2 = freshId();
 await registerCredential("investor2 (short)", "INVESTOR2", investor2Expiry, cred2);
 assert.equal(REASON[(await eligibility(W.INVESTOR.account.address))[0]], "Eligible");
 assert.equal(REASON[(await eligibility(W.INVESTOR2.account.address))[0]], "Eligible");
@@ -240,9 +245,9 @@ ok("note created, 4.2 USDT face value held in escrow", `note ${noteAddr} tx ${li
 // ---- 4. cool-off: funding is refused until fundableAt ----
 const approveMax = async (role, amount) => sendOk(`approve ${role}`, role, USDT, usdtAbi, "approve", [noteAddr, amount]);
 await approveMax("INVESTOR", parseUnits("3.0", 6));
-if ((await chainNow()) < Number(fundableAt)) {
-  await expectRevert("funding inside the cool-off", "INVESTOR", noteAddr, noteAbi, "fund", [3_000_000n], "CoolOffActive");
-}
+// this check must run, not be skipped: if the steps above took longer than the cool-off, fail and say so
+assert.ok((await chainNow()) < Number(fundableAt), "the cool-off ended before it could be checked; the RPC was too slow for this run");
+await expectRevert("funding inside the cool-off", "INVESTOR", noteAddr, noteAbi, "fund", [3_000_000n], "CoolOffActive");
 await waitUntil(Number(fundableAt), "cool-off over");
 
 // ---- 5. atomic delivery-versus-payment with the real USDT ----
@@ -270,7 +275,7 @@ await waitUntil(Number(fundableAt), "cool-off over");
     }
   }
   if (!domain) {
-    console.log("NOTE  could not match the USDT permit domain; skipping the permit path (logged as a finding)");
+    assert.fail("could not match the USDT permit domain, so the permit path cannot be tested (the token's domain changed?)");
   } else {
     const amount = 600_000n;
     const price = await nread("quote", [amount]);
@@ -311,7 +316,7 @@ const outsider = privateKeyToAccount(generatePrivateKey()).address;
 }
 {
   // give the debtor a credential, then revoke it: the rule reacts to the revocation
-  const credD = `0x${"33".repeat(28)}${Date.now().toString(16).padStart(8, "0")}`.slice(0, 66);
+  const credD = freshId();
   await registerCredential("debtor", "DEBTOR", T_START + 14 * 86400, credD);
   await sendOk("transfer to debtor while credentialed", "INVESTOR", noteAddr, noteAbi, "transfer", [debtorAddr, 50_000n]);
   const rv = { credId: credD };
@@ -413,7 +418,9 @@ await expectRevert("settle twice", "DEBTOR", noteAddr, noteAbi, "settle", [], "W
 console.log(`\n${checks} live checks passed`);
 writeFileSync(join(root, "logs/live-stage2-txs.json"), JSON.stringify(txs, null, 2));
 // The same transactions, kept in the repo so the app's evidence page and the README can link every one of them.
-writeFileSync(
-  join(root, "deployments/evidence.json"),
-  JSON.stringify({ chainId: dep.chainId, KhataRegistry: s2.KhataRegistry, KhataFactory: s2.KhataFactory, generatedBy: "npm run live:stage2", entries: txs.map(({ label, hash, status }) => ({ label, hash, status })) }, null, 2),
-);
+{
+  const file = join(root, "deployments/evidence.json");
+  let old; try { old = JSON.parse(readFileSync(file, "utf8")); } catch { old = undefined; }
+  const header = { chainId: dep.chainId, KhataRegistry: s2.KhataRegistry, KhataFactory: s2.KhataFactory, generatedBy: "npm run live:stage2 (merged across runs)" };
+  writeFileSync(file, JSON.stringify(mergeEvidence(old, header, txs), null, 2) + "\n");
+}

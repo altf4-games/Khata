@@ -47,3 +47,9 @@ for (const width of [375, 414, 768, 1440]) {
     expect(small).toBe(0);
   });
 }
+
+test("the evidence keeps the one-time first bind of the NIC sample, and every refusal says why", () => {
+  expect(evidence.entries.some((e) => /NIC sample/.test(e.label) && e.status === "success"), "a successful bind of the NIC sample").toBe(true);
+  const unexplained = evidence.entries.filter((e) => e.status === "reverted" && !(e as { reason?: string }).reason).map((e) => e.label);
+  expect(unexplained, "refusals with no recorded reason").toEqual([]);
+});

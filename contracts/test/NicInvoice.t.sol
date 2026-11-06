@@ -4,6 +4,7 @@ pragma solidity 0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {NicVerifier} from "../src/NicVerifier.sol";
+import {NicJwt} from "../src/NicJwt.sol";
 import {NicInvoice} from "../src/NicInvoice.sol";
 import {JsonLite} from "../src/JsonLite.sol";
 
@@ -294,6 +295,54 @@ contract NicInvoiceTest is Test {
             '"}'
         );
         _revertsInvalid(_token(badMonth), "DocDt");
+    }
+
+    /// Mutation test gaps: day 00 and month 00 are not dates.
+    function test_docDtRejectsDayOrMonthZero() public {
+        for (uint256 i; i < 2; ++i) {
+            string memory dt = i == 0 ? "00/07/2025" : "14/00/2025";
+            string memory bad = string.concat(
+                '{"SellerGstin":"', SELLER, '","BuyerGstin":"', BUYER, '","DocNo":"A1","DocTyp":"INV","DocDt":"', dt,
+                '","TotInvVal":2,"Irn":"', IRN, '"}'
+            );
+            _revertsInvalid(_token(bad), "DocDt");
+        }
+    }
+
+    /// Mutation test gaps: IrnDt, when present, must be "YYYY-MM-DD HH:MM:SS" exactly.
+    function test_irnDtMustBeAPlainDateTime() public {
+        string[3] memory bad = ["2025/07/14 12:44:00", "2025-07-14 12:44", "2025-07-14T12:44:00"];
+        for (uint256 i; i < bad.length; ++i) {
+            string memory inner = string.concat(
+                '{"SellerGstin":"', SELLER, '","BuyerGstin":"', BUYER, '","DocNo":"A1","DocTyp":"INV","DocDt":"14/07/2025","TotInvVal":2,"Irn":"',
+                IRN, '","IrnDt":"', bad[i], '"}'
+            );
+            _revertsInvalid(_token(inner), "IrnDt");
+        }
+    }
+
+    /// Mutation test gap: a base64url part whose length is 3 mod 4 must have zero unused bits (one canonical spelling).
+    function test_rejectsNonCanonicalPayloadEncodingOfLengthThreeModFour() public {
+        string memory inner = _inner("A1", "INV", "2");
+        string memory payload = string.concat('{"iss":"NIC","data":"', _escape(inner), '"}');
+        // pad with spaces (ignored by the JSON reader) until the payload's byte length is 2 mod 3: 3 mod 4 base64 characters
+        while (bytes(payload).length % 3 != 2) payload = string.concat(payload, " ");
+        string memory good = _tokenWithPayload(payload);
+        v.parseInvoice(good); // the canonical spelling parses
+
+        bytes memory t = bytes(good);
+        uint256 dot2;
+        for (uint256 i = t.length; i > 0; --i) {
+            if (t[i - 1] == ".") { dot2 = i - 1; break; }
+        }
+        bytes memory al = bytes("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+        uint256 idx;
+        for (uint256 i; i < 64; ++i) {
+            if (al[i] == t[dot2 - 1]) idx = i;
+        }
+        t[dot2 - 1] = al[idx ^ 1]; // set an unused low bit of the payload's last character
+        vm.expectRevert(NicJwt.MalformedToken.selector);
+        v.parseInvoice(string(t));
     }
 
     function test_missingRequiredFieldReverts() public {

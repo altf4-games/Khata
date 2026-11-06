@@ -8,22 +8,22 @@ import { explorerUrl } from "./chain";
 const txUrl = (h: string) => `${explorerUrl}/tx/${h}`;
 const clean = (label: string) => label.replace(/\s*\(refused\)\s*$/, "");
 
-function row(e: { label: string; hash: string; status: string }): HTMLElement {
+function row(e: { label: string; hash: string; status: string; reason?: string }): HTMLElement {
   const refused = e.status === "reverted";
   return el("li", { class: `ev-row ${refused ? "refused" : "ok"}`, ...(refused ? { "data-refusal": "" } : { "data-success": "" }) },
     el("span", { class: "ev-mark", "aria-hidden": "true" }, refused ? "✕" : "✓"),
-    el("span", { class: "ev-label" }, clean(e.label), refused ? el("em", {}, " was refused") : null),
+    el("span", { class: "ev-label" }, clean(e.label), refused ? el("em", {}, e.reason ? ` was refused (${e.reason})` : " was refused") : null),
     el("a", { class: "btn small", href: txUrl(e.hash), target: "_blank", rel: "noopener", "aria-label": `Open the transaction for: ${e.label}` }, "Transaction"),
   );
 }
 
 function covers(): HTMLElement {
   const rows: [string, string, string][] = [
-    ["Reads", "Sent through Anon-RPC over Tor by default. The RPC provider sees a Tor exit, not you.", "Which contracts and invoices the app reads, as the provider sees them, once they leave the Tor exit."],
+    ["Reads", "Sent through Anon-RPC by default: over Tor, or over Nym when Tor cannot start. The RPC provider sees an exit node, not you.", "Which contracts and invoices the app reads, as the provider sees them, once they leave the Tor exit."],
     ["Signed transactions", "Broadcast directly to the chain. A transaction names its sender by nature.", "Your wallet address, what it did and when. Public on any chain."],
     ["Demo wallet signing", "Done by the server signer for the labelled demo wallets.", "The signer sees what a demo wallet is asked to sign. These wallets hold testnet tokens only."],
     ["Your IP address", "Hidden from the RPC providers while reads go through Anon-RPC.", "Visible to this website's host and to the chain on any direct broadcast."],
-    ["Anon-RPC gateway", "A demo gateway run by the Ethereum Foundation.", "It is a demo service that may be down. When it is, the app says so and offers a direct read, which is not anonymous."],
+    ["Anon-RPC gateway", "Tor needs a demo gateway run by the Ethereum Foundation; Nym needs none.", "The gateway is a demo service that may be down. When Tor cannot start, the app switches to Nym and says so; a direct read, which is not anonymous, happens only when the visitor chooses it."],
   ];
   const t = el("table", { class: "ev-table", "aria-label": "What Anon-RPC covers" },
     el("thead", {}, el("tr", {}, el("th", {}, "Part"), el("th", {}, "What is private"), el("th", {}, "What stays visible"))),

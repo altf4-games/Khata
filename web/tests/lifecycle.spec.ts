@@ -51,7 +51,9 @@ test("full lifecycle through the four role views on the real chain", async ({ pa
 
   // ---- attester: sign a credential for investor A and publish it on Arkiv ----
   await page.getByRole("tab", { name: /Attester/ }).click();
-  // longer than any credential left from earlier runs, so this one is the investor's best and needs activating
+  // tier 3 is better than any credential left from earlier runs (the live suite registers tier 2), so the app offers it:
+  // it never offers a credential that would lower the tier or shorten the validity of the active one
+  await page.getByLabel("Tier").fill("3");
   await page.getByLabel("Valid for").fill("120");
   await page.getByRole("button", { name: "Sign and publish to Arkiv" }).click();
   await expect(page.getByText("Credential published on Arkiv")).toBeVisible({ timeout: 120_000 });

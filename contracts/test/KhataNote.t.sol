@@ -359,7 +359,7 @@ contract KhataNoteFundTest is KhataNoteBase {
         vm.startPrank(investor);
         usdt.approve(address(strict), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(KhataNote.ReceiverTierTooLow.selector, investor, 2, 3));
-        strict.fund(1_000_000);
+        strict.fund(100);
         vm.stopPrank();
     }
 
@@ -560,6 +560,42 @@ contract KhataNoteTransferTest is KhataNoteBase {
         (bool ok, string memory why) = note.explainTransfer(investor, investor2, 1);
         assertFalse(ok);
         assertEq(why, "The attester that issued the receiver's credential is no longer trusted.");
+    }
+
+    /// Mutation test gap: a removed attester must block the transfer itself, not only change the explanation.
+    function test_aTransferToAHolderWhoseAttesterWasRemovedIsBlocked() public {
+        vm.prank(owner);
+        att.removeAttester(vm.addr(ATTESTER_PK));
+        vm.prank(investor);
+        vm.expectRevert(
+            abi.encodeWithSelector(KhataNote.ReceiverNotEligible.selector, investor2, AttesterRegistry.Reason.AttesterRemoved)
+        );
+        note.transfer(investor2, 1);
+    }
+
+    /// Mutation test gap: a holder at exactly the minimum tier may receive; one tier below may not.
+    function test_theTierBoundaryIsInclusive() public {
+        vm.prank(seller);
+        bytes32 n2 = reg.bindInvoice(vm.readFile("contracts/test/fixtures/demo-irp/demo-05.token"));
+        vm.prank(seller);
+        KhataNote strict = KhataNote(factory.createNote(n2, _terms(2))); // investors hold tier 2
+        vm.warp(block.timestamp + COOL_OFF);
+        uint256 price = strict.quote(100);
+        vm.startPrank(investor);
+        usdt.approve(address(strict), price);
+        strict.fund(100);
+        strict.transfer(investor2, 1); // tier 2 == minTier: allowed
+        vm.stopPrank();
+        assertEq(strict.balanceOf(investor2), 1);
+
+        vm.prank(seller);
+        bytes32 n3 = reg.bindInvoice(vm.readFile("contracts/test/fixtures/demo-irp/demo-03.token"));
+        vm.prank(seller);
+        KhataNote stricter = KhataNote(factory.createNote(n3, _terms(3)));
+        vm.warp(block.timestamp + COOL_OFF);
+        vm.prank(investor);
+        vm.expectRevert(abi.encodeWithSelector(KhataNote.ReceiverTierTooLow.selector, investor, 2, 3));
+        stricter.fund(1);
     }
 
     /// The credential check happens at every transfer: revoke, then transfer.

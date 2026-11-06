@@ -52,6 +52,12 @@ export function credentialPanel(w: DemoWallet): HTMLElement {
     );
   } else if (!good && !active) {
     panel.append(emptyBox("No credential on Arkiv", "Ask an attester to publish one for this wallet. Switch to the attester role to do that."));
+  } else if (!good && active) {
+    // say why a credential found on Arkiv is not offered, instead of going quiet
+    const other = pickActivatable(mine, store.arkiv.revocations, { superseded: store.arkiv.superseded });
+    if (other && other.rec.credId.toLowerCase() !== e!.credId?.toLowerCase()) {
+      panel.append(el("p", { class: "foot", "data-testid": "cred-not-better" }, `Arkiv also holds a credential for this wallet (tier ${other.rec.tier}, expires ${when(other.rec.validUntil)}). It is not offered because the one active on Whitechain is as good or better: activating it would lower the tier or shorten the validity.`));
+    }
   }
   // a verified revocation that Whitechain has not seen yet
   if (active && e?.credId) {

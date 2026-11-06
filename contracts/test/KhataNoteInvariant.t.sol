@@ -134,15 +134,15 @@ contract KhataNoteInvariantTest is KhataNoteBase {
         assertLe(handler.redeemedTotal(), note.fundedFace());
     }
 
-    /// Notes outside escrow plus escrow always equal the supply.
+    /// Every note in existence is held by one of the actors (or the note itself): the balances add up to the supply exactly.
+    /// Redeemed notes are burned, so they leave both sides.
     function invariant_escrowPlusHoldersEqualSupply() public view {
         uint256 held = note.balanceOf(address(note));
         address[5] memory a = [investor, investor2, third, outsider, stranger];
         for (uint256 i; i < a.length; ++i) {
             held += note.balanceOf(a[i]);
         }
-        // holders that redeemed burned their notes, so held can only be below the supply
-        assertLe(held, note.totalSupply());
+        assertEq(held, note.totalSupply());
     }
 
     /// Credential-less actors never end up holding notes.

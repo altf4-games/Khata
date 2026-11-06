@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { keccak256, concat, toHex, stringToHex } from "viem";
 import { abiOf, clients, deployment, revertName, root, wallet } from "./lib/chain.mjs";
 import { irnFor, signToken } from "./lib/irp.mjs";
+import { mergeEvidence } from "./lib/evidence.mjs";
 
 const dep = deployment();
 const s2 = dep.stage2;
@@ -57,7 +58,7 @@ ok("proof made natively from the signed invoice", `${(proofMs / 1000).toFixed(1)
 // the contract's verifier is deployed with the registry
 const zkVerifier = await publicClient.readContract({ ...reg, functionName: "zkVerifier" });
 assert.equal(zkVerifier.toLowerCase(), s2.HonkVerifier.toLowerCase());
-ok("the registry points at the deployed, explorer-verified HonkVerifier", `${s2.HonkVerifier}`);
+ok("the registry points at the deployed HonkVerifier", `${s2.HonkVerifier}`);
 
 async function expectRevert(label, w, args, errorName) {
   try {
@@ -67,6 +68,7 @@ async function expectRevert(label, w, args, errorName) {
     assert.equal(r?.name, errorName, `${label}: expected ${errorName}, got ${r?.name ?? err.shortMessage}`);
     const { hash, receipt } = await send(`${label} (refused)`, w, "bindInvoiceZk", args, { gas: 3_000_000n });
     assert.equal(receipt.status, "reverted");
+    txs[txs.length - 1].reason = errorName;
     ok(`${label}: refused with ${errorName}`, `tx ${link(hash)}`);
     return;
   }
@@ -76,12 +78,24 @@ async function expectRevert(label, w, args, errorName) {
 // ---- refusals first ----
 await expectRevert("another wallet replays the proof", RIVAL, [proof, inputs], "ProofNotForCaller");
 const bigger = [...inputs]; bigger[24] = toHex(31000_00n * 100n, { size: 32 });
-// a changed public input fails inside the verifier, which reverts with its own error
+// a changed public input fails inside the verifier: the registry's own checks pass (no registry error), and the verifier
+// itself, asked directly, refuses the same proof and inputs
 try { await publicClient.simulateContract({ ...reg, functionName: "bindInvoiceZk", args: [proof, bigger], account: SUPPLIER.account }); assert.fail("should revert"); }
-catch (err) { assert.notEqual(err.name, "AssertionError"); }
+catch (err) {
+  assert.notEqual(err.name, "AssertionError");
+  const registryErrors = new Set(reg.abi.filter((i) => i.type === "error").map((i) => i.name));
+  const r = revertName(err);
+  assert.ok(!r || !registryErrors.has(r.name), `expected the verifier to refuse, but the registry refused first with ${r?.name}`);
+}
+{
+  const vabi = abiOf("HonkVerifier");
+  const said = await publicClient.readContract({ address: s2.HonkVerifier, abi: vabi, functionName: "verify", args: [proof, bigger] }).catch(() => false);
+  assert.equal(said, false, "the verifier must refuse the changed inputs");
+}
 {
   const { hash, receipt } = await send("proof with a larger value claimed (refused)", SUPPLIER, "bindInvoiceZk", [proof, bigger], { gas: 3_000_000n });
   assert.equal(receipt.status, "reverted");
+  txs[txs.length - 1].reason = "the verifier refused the proof";
   ok("a proof with the value changed to a larger one: refused by the verifier", `tx ${link(hash)}`);
 }
 const badKey = [...inputs]; badKey[0] = toHex(BigInt(inputs[0]) ^ 1n, { size: 32 });
@@ -121,4 +135,9 @@ ok("a note was created from the proof-bound invoice", `note ${note} tx ${link(h3
 
 console.log(`\n${checks} zero-knowledge live checks passed`);
 writeFileSync(join(root, "logs/live-zk-txs.json"), JSON.stringify(txs, null, 2));
-writeFileSync(join(root, "deployments/evidence-zk.json"), JSON.stringify({ chainId: dep.chainId, KhataRegistry: s2.KhataRegistry, HonkVerifier: s2.HonkVerifier, nullifier: expectedNullifier, generatedBy: "npm run live:zk", entries: txs.map(({ label, hash, status }) => ({ label, hash, status })) }, null, 2));
+{
+  const file = join(root, "deployments/evidence-zk.json");
+  let old; try { old = JSON.parse(readFileSync(file, "utf8")); } catch { old = undefined; }
+  const header = { chainId: dep.chainId, KhataRegistry: s2.KhataRegistry, HonkVerifier: s2.HonkVerifier, nullifier: expectedNullifier, generatedBy: "npm run live:zk (merged across runs)" };
+  writeFileSync(file, JSON.stringify(mergeEvidence(old, header, txs), null, 2) + "\n");
+}

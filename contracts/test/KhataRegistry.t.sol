@@ -155,6 +155,30 @@ contract KhataRegistryTest is Test {
         vm.stopPrank();
     }
 
+    /// Mutation test gap: only 2048, 3072 and 4096-bit moduli are accepted, even when the bytes are otherwise a usable key.
+    function test_rejectsModulusLengthsOutsideTheList() public {
+        uint256[3] memory lens = [uint256(255), 300, 513];
+        vm.startPrank(owner);
+        for (uint256 i; i < lens.length; ++i) {
+            bytes memory m = new bytes(lens[i]);
+            for (uint256 j; j < m.length; ++j) m[j] = 0xff; // non-zero top byte and odd
+            vm.expectRevert(KhataRegistry.InvalidKey.selector);
+            reg.addKey(string.concat("L", vm.toString(lens[i])), m, E, false);
+        }
+        vm.stopPrank();
+    }
+
+    /// Mutation test gap: a kid is at most 64 bytes.
+    function test_kidLengthIsCapped() public {
+        bytes memory k64 = new bytes(64);
+        for (uint256 i; i < 64; ++i) k64[i] = "K";
+        vm.startPrank(owner);
+        vm.expectRevert(KhataRegistry.InvalidKey.selector);
+        reg.addKey(string.concat(string(k64), "K"), nicModulus, E, false);
+        reg.addKey(string(k64), nicModulus, E, false);
+        vm.stopPrank();
+    }
+
     function test_unknownKeyReadReverts() public {
         vm.expectRevert(abi.encodeWithSelector(KhataRegistry.UnknownKey.selector, "nope"));
         reg.keyOf("nope");

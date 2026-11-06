@@ -9,6 +9,13 @@ import {HonkVerifier} from "../src/zk/HonkVerifier.sol";
 
 /// The zero-knowledge binding path, against real proofs made by the Noir circuit (zk/khata_zk) with Barretenberg.
 /// Fixtures: contracts/test/fixtures/zk/*.proof and *.inputs (the proof binds the address of `zkSeller`).
+/// A verifier that says no to everything, to check the registry acts on the verifier's answer.
+contract RejectingVerifier {
+    function verify(bytes calldata, bytes32[] calldata) external pure returns (bool) {
+        return false;
+    }
+}
+
 contract KhataZkTest is Test {
     KhataRegistry internal reg;
     AttesterRegistry internal att;
@@ -152,6 +159,47 @@ contract KhataZkTest is Test {
         vm.prank(zkSeller);
         vm.expectRevert(KhataRegistry.UnknownZkKey.selector);
         reg.bindInvoiceZk(_proof("nic-sample"), inputs);
+    }
+
+    /// Mutation test gap: the limbs must rebuild exactly a 2048-bit number; a bit above 2048 is a different modulus.
+    function test_aModulusWiderThan2048BitsIsRefused() public {
+        bytes32[] memory inputs = _inputs("nic-sample");
+        inputs[17] = bytes32(uint256(inputs[17]) | (uint256(1) << 8)); // bit 2048, still a valid 120-bit limb
+        vm.prank(zkSeller);
+        vm.expectRevert(KhataRegistry.UnknownZkKey.selector);
+        reg.bindInvoiceZk(_proof("nic-sample"), inputs);
+    }
+
+    /// Mutation test gap: the registry must act on the verifier's answer, not just call it.
+    function test_aProofTheVerifierRejectsIsRefused() public {
+        RejectingVerifier no = new RejectingVerifier();
+        vm.prank(owner);
+        reg.setZkVerifier(address(no));
+        vm.prank(zkSeller);
+        vm.expectRevert(KhataRegistry.InvalidProof.selector);
+        reg.bindInvoiceZk(_proof("nic-sample"), _inputs("nic-sample"));
+    }
+
+    function test_aZeroOrOversizedValueIsRefusedBeforeVerifying() public {
+        bytes32[] memory inputs = _inputs("nic-sample");
+        inputs[24] = bytes32(0);
+        bytes memory proof = _proof("nic-sample");
+        vm.prank(zkSeller);
+        vm.expectRevert(KhataRegistry.BadProofInputs.selector);
+        reg.bindInvoiceZk(proof, inputs);
+        inputs[24] = bytes32(uint256(type(uint64).max) + 1);
+        vm.prank(zkSeller);
+        vm.expectRevert(KhataRegistry.BadProofInputs.selector);
+        reg.bindInvoiceZk(proof, inputs);
+    }
+
+    /// Mutation test gap: the cool-off applies to proof-bound invoices exactly as to token-bound ones.
+    function test_aProofBoundInvoiceGetsTheCoolOff() public {
+        vm.prank(zkSeller);
+        bytes32 n = reg.bindInvoiceZk(_proof("nic-sample"), _inputs("nic-sample"));
+        (, uint64 boundAt,,, uint64 fundableAt,) = reg.bindings(n);
+        assertEq(boundAt, block.timestamp);
+        assertEq(fundableAt, boundAt + 1 days);
     }
 
     function test_theDemoFlagMustMatchTheKey() public {
