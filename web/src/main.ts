@@ -430,7 +430,7 @@ function actions(r: Inspection) {
     activeWallet("supplier") ? el("span", { class: "foot", style: "align-self:center" }, "Sending as ", el("span", { class: "mono" }, short(activeWallet("supplier")!.address, 6, 4))) : null,
   ));
   if (a.kind === "readOnly") {
-    wrap.append(el("div", { class: "banner info" }, el("span", { class: "ic" }, "i"), el("div", {}, el("strong", {}, "The contract would accept this"), el("p", {}, "This build has no demo wallet, so it cannot send the transaction. Run it locally with the demo keys to finish."))));
+    wrap.append(el("div", { class: "banner info" }, el("span", { class: "ic" }, "i"), el("div", {}, el("strong", {}, "The contract would accept this"), el("p", {}, "There is no demo wallet for this role, so the transaction was not sent."))));
   }
   if (a.kind === "refused") {
     wrap.append(el("div", { class: "banner bad", role: "alert" }, el("span", { class: "ic" }, "✕"), el("div", {}, el("strong", {}, a.title), el("p", {}, a.detail))));

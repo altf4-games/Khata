@@ -50,7 +50,7 @@ export function walletBar(role: Role): HTMLElement {
   const w = activeWallet(role);
   if (!w) {
     return el("div", { class: "card notice" }, el("span", { class: "kicker" }, "Read only"), el("h2", {}, "No demo wallet loaded"),
-      el("p", { class: "muted" }, "This build has no demo wallet keys, so it can show the chain but not send. Run it locally with the keys in .env."));
+      el("p", { class: "muted" }, "The demo signer has no wallet for this role, so the page can show the chain but not send."));
   }
   const k = w.address.toLowerCase();
   const b = store.bal[k];
@@ -73,7 +73,7 @@ export function walletBar(role: Role): HTMLElement {
       b ? el("span", { class: "badge info" }, `${usdt(b.usdt)} USDT`) : null,
       b ? el("span", { class: "badge info" }, `${(Number(b.wbt) / 1e18).toFixed(3)} WBT for fees`) : null,
       role === "investor" || role === "debtor" ? credChip : null),
-    el("p", { class: "foot" }, "Demo wallet on the Whitechain testnet. Its key sits in this browser build so the whole story runs in one tab. It holds no real value."),
+    el("p", { class: "foot" }, "Demo wallet on the Whitechain testnet. A server signer holds its key, never this page, so the whole story runs in one tab. It holds no real value."),
   );
 }
 
