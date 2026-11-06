@@ -5,6 +5,7 @@
 import { AnonRpcWorker } from "@anon-rpc/browser-harness";
 import { http, type Transport } from "viem";
 import { Traffic } from "./traffic";
+import { nymCannotCarry } from "./route";
 import { checkPin } from "./pin";
 import { readParams } from "./params";
 import { waitFor } from "./wait";
@@ -211,6 +212,11 @@ export const routedFetch: typeof fetch = async (input, init) => {
     return logged("direct", () => fetch(input, init));
   }
   if (state.kind === "failed") throw new Error("Anonymous reads are unavailable. Retry them or choose direct reads.");
+  if (state.kind === "ready" && nymCannotCarry(state.network, String(input))) {
+    traffic.read("direct", calls);
+    touch();
+    return logged("direct", () => fetch(input, init));
+  }
   try {
     // during a retry the old worker is gone and the new one is not made yet: wait for it rather than fail
     const w = worker ?? (await waitFor(() => worker, () => (state.kind === "failed" ? "Anonymous reads are unavailable. Retry them or choose direct reads." : state.kind === "direct" ? "Reads switched to direct; try again." : undefined), 60_000));
@@ -239,7 +245,7 @@ export function chipText(): { text: string; title: string; tone: "ok" | "wait" |
     case "starting":
       return { text: "Reads: starting Anon-RPC…", title: "Opening a private route over Tor. Reads wait until it is ready.", tone: "wait" };
     case "ready":
-      return { text: `Reads: Anon-RPC (${state.network})${share === undefined ? "" : ` · ${Math.round(share * 100)}% (${s.anon}/${s.anon + s.direct})`}`, title: `${detail} Writes are not anonymised.`, tone: "ok" };
+      return { text: `Reads: Anon-RPC (${state.network})${share === undefined ? "" : ` · ${Math.round(share * 100)}% (${s.anon}/${s.anon + s.direct})`}`, title: `${detail} Writes are not anonymised.${state.network === "Nym" ? " On Nym, Arkiv reads go direct because Arkiv's gateway rejects requests that arrive over Nym (HTTP 415)." : ""}`, tone: "ok" };
     case "failed":
       return { text: "Reads: unavailable", title: state.why, tone: "bad" };
     case "direct":
