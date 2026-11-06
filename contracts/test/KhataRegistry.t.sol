@@ -440,7 +440,7 @@ contract KhataRegistryTest is Test {
         (AttesterRegistry.SellerBinding memory b1, bytes memory sig1) =
             _signedBinding(NIC_SELLER, rival, uint64(block.timestamp + 365 days), 5);
         reg.registerSeller(b1, sig1);
-        (address wallet,, uint64 version) = reg.sellers(NIC_SELLER);
+        (address wallet,, uint64 version,) = reg.sellers(NIC_SELLER);
         assertEq(wallet, rival);
         assertEq(version, 5);
 
@@ -464,6 +464,30 @@ contract KhataRegistryTest is Test {
         reg.bindInvoice(sample); // the old wallet is no longer the seller
         vm.prank(rival);
         reg.bindInvoice(sample);
+    }
+
+    /// Red-team C3: removing an attester must stop the seller bindings it signed, not only its credentials.
+    function test_removingTheAttesterStopsItsSellerBindings() public {
+        _addNic();
+        vm.prank(owner);
+        att.removeAttester(vm.addr(ATTESTER_PK));
+        vm.prank(seller);
+        vm.expectRevert(abi.encodeWithSelector(KhataRegistry.SellerNotRegistered.selector, NIC_SELLER));
+        reg.bindInvoice(sample);
+        assertEq(
+            reg.inspect(sample).sellerWallet, address(0), "the panel no longer shows a wallet from a removed attester"
+        );
+    }
+
+    /// Red-team C5: a binding with an absurd version must not lock the GSTIN forever.
+    function test_aBindingCannotJumpTheVersionToTheMaximum() public {
+        (AttesterRegistry.SellerBinding memory b, bytes memory sig) =
+            _signedBinding(NIC_SELLER, rival, uint64(block.timestamp + 365 days), type(uint64).max);
+        vm.expectRevert(abi.encodeWithSelector(KhataRegistry.VersionTooFar.selector, type(uint64).max));
+        reg.registerSeller(b, sig);
+        // a small step still works, so ordinary re-registration is unaffected
+        (b, sig) = _signedBinding(NIC_SELLER, rival, uint64(block.timestamp + 365 days), bindingVersion + 1);
+        reg.registerSeller(b, sig);
     }
 
     function test_expiredSellerBindingCannotBind() public {

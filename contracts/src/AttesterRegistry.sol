@@ -18,6 +18,7 @@ contract AttesterRegistry is Ownable2Step, EIP712 {
     error UnknownAttester(address signer);
     error CredentialExpired(uint64 validUntil);
     error CredentialIsRevoked(bytes32 credId);
+    error CredentialSuperseded(bytes32 credId);
     error OwnershipCannotBeRenounced();
 
     enum Reason {
@@ -70,6 +71,8 @@ contract AttesterRegistry is Ownable2Step, EIP712 {
 
     mapping(address => bool) public isAttester;
     mapping(address attester => mapping(bytes32 credId => bool)) public isRevoked;
+    /// A credential that a newer one has replaced for its subject; it can no longer be registered.
+    mapping(address attester => mapping(bytes32 credId => bool)) public superseded;
     mapping(address subject => Credential) public credentialOf;
 
     constructor(address initialOwner) Ownable(initialOwner) EIP712("KhataAttesters", "1") {}
@@ -120,7 +123,11 @@ contract AttesterRegistry is Ownable2Step, EIP712 {
         if (!isAttester[signer]) revert UnknownAttester(signer);
         if (c.validUntil <= block.timestamp) revert CredentialExpired(c.validUntil);
         if (isRevoked[signer][c.credId]) revert CredentialIsRevoked(c.credId);
+        if (superseded[signer][c.credId]) revert CredentialSuperseded(c.credId);
 
+        // The credential being replaced can never come back, so an old signed copy cannot be replayed over a newer one.
+        Credential memory old = credentialOf[c.subject];
+        if (old.attester != address(0) && old.credId != c.credId) superseded[old.attester][old.credId] = true;
         credentialOf[c.subject] = Credential(signer, c.tier, c.jurisdiction, c.validUntil, c.credId);
         emit CredentialRegistered(c.subject, signer, c.credId, c.validUntil);
     }

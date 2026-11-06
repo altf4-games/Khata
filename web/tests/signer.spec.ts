@@ -32,6 +32,11 @@ test("signs an Arkiv write on the Arkiv testnet", async () => {
   expect(r.status).toBe(200);
 });
 
+test("signs an Arkiv write to the entity registry the SDK uses on Rabdi, and nothing else on that chain", async () => {
+  expect((await sign({ ...base, chainId: 7794095, to: "0x4400000000000000000000000000000000000044", data: "0x1234" })).status).toBe(200);
+  expect((await sign({ ...base, chainId: 7794095, to: "0x000000000000000000000000000000000000dEaD", data: "0x1234" })).status).toBe(403);
+});
+
 test("refuses to move native funds out of a demo wallet", async () => {
   const r = await sign({ ...base, to: "0x000000000000000000000000000000000000dEaD", value: 1n });
   expect(r.status).toBe(403);

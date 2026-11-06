@@ -473,6 +473,30 @@
  },
  {
   "type": "function",
+  "name": "superseded",
+  "inputs": [
+   {
+    "name": "attester",
+    "type": "address",
+    "internalType": "address"
+   },
+   {
+    "name": "credId",
+    "type": "bytes32",
+    "internalType": "bytes32"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
   "name": "transferOwnership",
   "inputs": [
    {
@@ -664,6 +688,17 @@
  {
   "type": "error",
   "name": "CredentialIsRevoked",
+  "inputs": [
+   {
+    "name": "credId",
+    "type": "bytes32",
+    "internalType": "bytes32"
+   }
+  ]
+ },
+ {
+  "type": "error",
+  "name": "CredentialSuperseded",
   "inputs": [
    {
     "name": "credId",

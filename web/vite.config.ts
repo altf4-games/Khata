@@ -18,6 +18,7 @@ function demoSigner(): Plugin {
       let body: unknown;
       try { body = JSON.parse(data); } catch { body = undefined; }
       const r = await handleSign(body, env);
+      if (r.status >= 400) console.warn(`[signer] ${r.status} ${r.body.error}`);
       res.statusCode = r.status;
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify(r.body));

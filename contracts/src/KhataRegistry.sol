@@ -24,6 +24,7 @@ contract KhataRegistry is Ownable2Step {
     error SellerNotRegistered(bytes32 gstinHash);
     error NotSellerWallet(address expected);
     error SellerBindingExpired(uint64 validUntil);
+    error VersionTooFar(uint64 version);
 
     uint32 internal constant MIN_EXPONENT = 65537;
     uint256 internal constant MAX_KID_BYTES = 64;
@@ -49,6 +50,7 @@ contract KhataRegistry is Ownable2Step {
         address wallet;
         uint64 validUntil;
         uint64 version;
+        address attester; // who signed the binding; if it is removed the binding stops counting
     }
 
     /// What the verification panel shows for a scanned token, without changing any state.
@@ -77,6 +79,7 @@ contract KhataRegistry is Ownable2Step {
 
     mapping(bytes32 kidHash => Key) private _keys;
     mapping(bytes32 nullifier => Binding) public bindings;
+    uint64 public constant MAX_VERSION_STEP = 1_000_000;
     mapping(bytes32 gstinHash => Seller) public sellers;
 
     constructor(address initialOwner, AttesterRegistry attesters_, uint64 coolOff_) Ownable(initialOwner) {
@@ -149,7 +152,9 @@ contract KhataRegistry is Ownable2Step {
         address attester = attesters.verifySellerBinding(b, signature);
         Seller storage s = sellers[b.gstinHash];
         if (b.version <= s.version) revert StaleBinding(s.version);
-        sellers[b.gstinHash] = Seller(b.wallet, b.validUntil, b.version);
+        // Versions only move forward, so a huge jump would lock the GSTIN for good.
+        if (b.version - s.version > MAX_VERSION_STEP) revert VersionTooFar(b.version);
+        sellers[b.gstinHash] = Seller(b.wallet, b.validUntil, b.version, attester);
         emit SellerRegistered(b.gstinHash, b.wallet, attester, b.version);
     }
 
@@ -167,7 +172,9 @@ contract KhataRegistry is Ownable2Step {
         NicInvoice.Invoice memory inv = NicInvoice.parse(p.payload);
         bytes32 gstinHash = keccak256(bytes(inv.sellerGstin));
         Seller memory seller = sellers[gstinHash];
-        if (seller.wallet == address(0)) revert SellerNotRegistered(gstinHash);
+        if (seller.wallet == address(0) || !attesters.isAttester(seller.attester)) {
+            revert SellerNotRegistered(gstinHash);
+        }
         if (msg.sender != seller.wallet) revert NotSellerWallet(seller.wallet);
         if (seller.validUntil <= block.timestamp) revert SellerBindingExpired(seller.validUntil);
 
@@ -204,6 +211,7 @@ contract KhataRegistry is Ownable2Step {
         r.invoice = NicInvoice.parse(p.payload);
         r.nullifier = k.demo ? NicInvoice.demoNullifierOf(r.invoice.irn) : NicInvoice.nullifierOf(r.invoice.irn);
         r.alreadyBound = bindings[r.nullifier].boundAt != 0;
-        r.sellerWallet = sellers[keccak256(bytes(r.invoice.sellerGstin))].wallet;
+        Seller memory sl = sellers[keccak256(bytes(r.invoice.sellerGstin))];
+        r.sellerWallet = attesters.isAttester(sl.attester) ? sl.wallet : address(0);
     }
 }

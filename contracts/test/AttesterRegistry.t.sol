@@ -166,6 +166,29 @@ contract AttesterRegistryTest is Test {
         assertEq(uint8(reason), uint8(AttesterRegistry.Reason.AttesterRemoved));
     }
 
+    /// Red-team C4: after a credential is replaced, resubmitting the old signed one must not bring it back.
+    function test_aReplacedCredentialCannotBeReplayed() public {
+        AttesterRegistry.Eligibility memory high = _cred(investor, uint64(block.timestamp + 1 days), keccak256("high"));
+        high.tier = 3;
+        bytes memory highSig = _sign(attesterPk, att.eligibilityDigest(high));
+        att.register(high, highSig);
+        AttesterRegistry.Eligibility memory low = _cred(investor, uint64(block.timestamp + 1 days), keccak256("low"));
+        low.tier = 1;
+        att.register(low, _sign(attesterPk, att.eligibilityDigest(low)));
+
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(AttesterRegistry.CredentialSuperseded.selector, high.credId));
+        att.register(high, highSig);
+        (, uint8 tier) = att.eligibility(investor);
+        assertEq(tier, 1, "the downgrade stands");
+    }
+
+    function test_resubmittingTheCurrentCredentialChangesNothing() public {
+        AttesterRegistry.Eligibility memory c = _register(investor, uint64(block.timestamp + 1 days), CRED);
+        att.register(c, _sign(attesterPk, att.eligibilityDigest(c)));
+        assertTrue(att.isEligible(investor, 0));
+    }
+
     // ---------- revocation ----------
 
     function test_revocationByTheAttesterAppliesAndAnyoneMaySubmit() public {

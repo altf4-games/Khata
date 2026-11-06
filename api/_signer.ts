@@ -13,7 +13,8 @@ import demoWallets from "../deployments/demo-wallets.json" with { type: "json" }
 
 const WHITECHAIN = 1874;
 const ARKIV_RABDI = 7794095;
-const ARKIV_PRECOMPILE = "0x00000000000000000000000000000061726b6976";
+// Where the Arkiv SDK sends writes on Rabdi (ARKIV_ADDRESS in the SDK), and the earlier testnet's address.
+const ARKIV_WRITE_TARGETS = new Set(["0x4400000000000000000000000000000000000044", "0x00000000000000000000000000000061726b6976"]);
 const st = deployment.stage2;
 const lc = (a: string) => a.toLowerCase();
 const USDT = lc(st.usdt);
@@ -67,7 +68,7 @@ async function checkTransaction(tx: any, deps: SignDeps): Promise<SignResult | n
   const to = lc(String(tx.to));
   const data = typeof tx.data === "string" ? lc(tx.data) : "0x";
   const selector = data.slice(0, 10);
-  if (chain === ARKIV_RABDI) return to === ARKIV_PRECOMPILE ? null : refuse(403, "Only Arkiv writes are allowed on the Arkiv testnet.");
+  if (chain === ARKIV_RABDI) return ARKIV_WRITE_TARGETS.has(to) ? null : refuse(403, "Only Arkiv writes are allowed on the Arkiv testnet.");
   if (PROJECT.has(to)) return null;
   if (to === USDT) {
     if (selector !== APPROVE) return refuse(403, "Only approving a Khata note to spend USDT is allowed on the USDT token.");

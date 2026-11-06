@@ -22,6 +22,19 @@
  },
  {
   "type": "function",
+  "name": "MAX_VERSION_STEP",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint64",
+    "internalType": "uint64"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
   "name": "acceptOwnership",
   "inputs": [],
   "outputs": [],
@@ -416,6 +429,11 @@
     "name": "version",
     "type": "uint64",
     "internalType": "uint64"
+   },
+   {
+    "name": "attester",
+    "type": "address",
+    "internalType": "address"
    }
   ],
   "stateMutability": "view"
@@ -764,6 +782,17 @@
   "type": "error",
   "name": "UnsupportedAlgorithm",
   "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "VersionTooFar",
+  "inputs": [
+   {
+    "name": "version",
+    "type": "uint64",
+    "internalType": "uint64"
+   }
+  ]
  },
  {
   "type": "error",
