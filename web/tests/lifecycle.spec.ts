@@ -26,7 +26,7 @@ test.beforeAll(async () => {
 
 test("full lifecycle through the four role views on the real chain", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 1000 });
-  await page.goto("/?reads=direct");
+  await page.goto("/?reads=direct#app");
 
   // ---- supplier: scan a demo invoice, verify on-chain, register, create the note ----
   await page.getByRole("button", { name: "DEMO IRP invoice" }).click();

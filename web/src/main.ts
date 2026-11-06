@@ -1,5 +1,5 @@
 import "./styles.css";
-import heroSvg from "./hero.svg?raw";
+import { landing, LOGO } from "./landing";
 import nicSample from "../../contracts/test/fixtures/nic-sample.token?raw";
 import demoInvoices from "./demo-invoices.json";
 import {
@@ -200,8 +200,6 @@ async function onFile(ev: Event) {
 }
 
 // ---------- views ----------
-const LOGO = `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="4" width="32" height="40" rx="4" fill="#7d1816"/><rect x="10" y="4" width="28" height="40" rx="3" fill="#a3211f"/><rect x="8" y="19" width="32" height="8" fill="#f5b301"/><circle cx="24" cy="23" r="2.2" fill="#a3211f"/><path d="M15 10h18M15 14h18M15 33h18M15 37h12" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"/></svg>`;
-
 const ROLES: { id: Role; label: string; note: string }[] = [
   { id: "supplier", label: "Supplier", note: "issues the invoice" },
   { id: "investor", label: "Investor", note: "funds the note" },
@@ -220,12 +218,12 @@ function roughDefs() {
 }
 
 function topbar() {
-  const brand = el("div", { class: "brand" });
+  const brand = el("a", { class: "brand", href: "#", "aria-label": "Khata home" });
   brand.innerHTML = LOGO;
   brand.append("Khata");
   return el("div", { class: "bar" }, el("div", { class: "wrap" }, brand,
     el("div", { class: "chips" },
-      el("span", { class: "chip" }, el("span", { class: "dot on" }), "Whitechain Sepolia testnet"),
+      el("span", { class: "chip hide-sm" }, el("span", { class: "dot on" }), "Whitechain Sepolia testnet"),
       readsChip(),
     )));
 }
@@ -267,19 +265,23 @@ function anonBanner(): HTMLElement | null {
   return null;
 }
 
-function hero() {
-  const art = el("div", { class: "hero-art" });
-  art.innerHTML = heroSvg;
-  return el("section", { class: "hero" }, el("div", { class: "wrap" },
-    el("div", { class: "hero-copy" },
-      el("span", { class: "eyebrow" }, "invoice financing for small suppliers"),
-      (() => { const h = el("h1", {}); h.innerHTML = `Finance the invoice,<br />not the <span class="scrawl">fraud.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12 C30 4 55 17 85 9 S140 15 170 8 S192 11 197 7" fill="none" stroke="#b3261e" stroke-width="4" stroke-linecap="round"/></svg></span>`; return h; })(),
-      el("p", { class: "sub" }, "A smart contract checks the government's own signature on a GST e-invoice QR, and refuses to finance the same invoice twice."),
-      el("ul", { class: "hero-points" },
-        el("li", {}, "Signature verified on-chain"), el("li", {}, "One financing per invoice"), el("li", {}, "Testnet demo")),
-    ),
-    art,
-  ));
+const ROLE_ICONS: Record<Role, string> = {
+  supplier: `<path d="M5 20V9l7-5 7 5v11M9 20v-6h6v6"/>`,
+  investor: `<path d="M4 18l5-5 3 3 7-8M15 8h4v4"/>`,
+  debtor: `<path d="M4 7h16v11H4zM4 11h16M8 15h3"/>`,
+  attester: `<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6zM9 12l2 2 4-4"/>`,
+};
+function roleIcon(r: Role): Node {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("viewBox", "0 0 24 24");
+  s.setAttribute("fill", "none");
+  s.setAttribute("stroke", "currentColor");
+  s.setAttribute("stroke-width", "2");
+  s.setAttribute("stroke-linecap", "round");
+  s.setAttribute("stroke-linejoin", "round");
+  s.setAttribute("aria-hidden", "true");
+  s.innerHTML = ROLE_ICONS[r];
+  return s;
 }
 
 function roleSwitch() {
@@ -288,7 +290,7 @@ function roleSwitch() {
     roles.append(el("li", {}, el("button", {
       class: "role-btn", role: "tab", "aria-selected": String(store.role === r.id),
       onclick: () => { store.role = r.id; render(); void refresh(); },
-    }, r.label, el("small", {}, r.note))));
+    }, roleIcon(r.id), r.label, el("small", {}, r.note))));
   }
   return el("nav", { class: "switch", "aria-label": "Role switcher" }, el("div", { class: "wrap" }, roles));
 }
@@ -449,22 +451,50 @@ function footer() {
   ));
 }
 
-function roleIntro(role: Role): HTMLElement | null {
-  const text: Record<string, string> = {
-    investor: "Buy a slice of an invoice at a discount. The USDT goes straight to the supplier in the same transaction as the notes. Only wallets with a valid credential can hold them.",
-    debtor: "You are the buyer on the invoice. On the due date you pay the face value in USDT; holders then redeem.",
-    attester: "You are the trusted signer. You vouch that a wallet may hold notes, and that a seller wallet really belongs to a GSTIN. Both are checked on-chain from your signature.",
-  };
-  return text[role] ? el("div", { class: "wrap" }, el("p", { class: "lede" }, text[role])) : null;
+const PAGE: Record<Role, { title: string; text: string }> = {
+  supplier: { title: "Supplier", text: "Scan a GST e-invoice QR. The contract verifies the government's signature, records the invoice once, and lets you sell notes against it." },
+  investor: { title: "Investor", text: "Buy a slice of an invoice at a discount. The USDT goes straight to the supplier in the same transaction as the notes. Only wallets with a valid credential can hold them." },
+  debtor: { title: "Debtor", text: "You are the buyer on the invoice. On the due date you pay the face value in USDT; holders then redeem." },
+  attester: { title: "Attester", text: "You are the trusted signer. You vouch that a wallet may hold notes, and that a seller wallet really belongs to a GSTIN. Both are checked on-chain from your signature." },
+};
+function pageHead(role: Role): HTMLElement {
+  return el("div", { class: "wrap page-head" }, el("h1", {}, PAGE[role].title), el("p", {}, PAGE[role].text));
+}
+
+const inApp = () => location.hash === "#app";
+/** Open the app on a role, optionally with an invoice to check. */
+function openApp(role: Role = "supplier", token?: string) {
+  store.role = role;
+  if (token) state.token = token;
+  if (location.hash !== "#app") location.hash = "#app";
+  else render();
+  void refresh();
+  if (token) void check();
 }
 
 function render() {
   const app = document.getElementById("app")!;
+  if (!inApp()) {
+    app.replaceChildren(roughDefs(), landing({
+      getToken: () => state.token,
+      setText: (t) => { state.token = t; },
+      open: (t) => openApp("supplier", t),
+      openRole: (r) => openApp(r),
+      scan: () => { openApp("supplier"); void toggleCamera(); },
+      onFile: (ev) => { openApp("supplier"); void onFile(ev); },
+      nicSample: () => nicSample.trim(),
+      demoInvoice: () => { openApp("supplier"); void useDemoInvoice(); },
+      demoBusy: () => demoBusy,
+      tamper: () => { openApp("supplier", nicSample.trim()); void check().then(flipOneByte); },
+    }), footer());
+    return;
+  }
   const hadFocus = document.activeElement?.id;
   const sel = (document.activeElement as HTMLTextAreaElement | null)?.selectionStart;
-  app.replaceChildren(roughDefs(), topbar(), ...[anonBanner()].filter((x): x is HTMLElement => !!x), hero(), roleSwitch());
+  const shell = el("div", { class: "app" });
   const main = el("main", { id: "main" });
   const role = store.role;
+  main.append(pageHead(role));
   if (role === "supplier") {
     main.append(el("div", { class: "wrap" }, steps()));
     main.append(el("div", { class: "wrap two" }, inputCard(), resultCard()));
@@ -473,22 +503,23 @@ function render() {
     main.append(el("div", { class: "wrap" }, walletBar("supplier"), el("h2", { class: "section" }, "Your notes"),
       notesList("supplier", (n) => n.seller.toLowerCase() === activeWallet("supplier")?.address.toLowerCase(), "Register an invoice above, then create its note.")));
   } else if (role === "attester") {
-    main.append(...[roleIntro(role)].filter((x): x is HTMLElement => !!x), el("div", { class: "wrap" }, walletBar(role)), ...attesterDesk().map((c) => el("div", { class: "wrap" }, c)));
+    main.append(el("div", { class: "wrap" }, walletBar(role)), ...attesterDesk().map((c) => el("div", { class: "wrap" }, c)));
   } else {
     const w = activeWallet(role);
-    main.append(...[roleIntro(role)].filter((x): x is HTMLElement => !!x));
     main.append(el("div", { class: "wrap" }, walletBar(role)));
     if (role === "investor" && w) main.append(el("div", { class: "wrap two" }, credentialPanel(w), marketplace(role)));
     main.append(el("div", { class: "wrap" }, el("h2", { class: "section" }, role === "investor" ? "All notes on Whitechain" : "Notes"),
       notesList(role, undefined, "No notes exist yet. Switch to the supplier role to register an invoice and create one.")));
   }
-  app.append(main, footer());
+  shell.append(topbar(), ...[anonBanner()].filter((x): x is HTMLElement => !!x), roleSwitch(), main, footer());
+  document.getElementById("app")!.replaceChildren(roughDefs(), shell);
   if (hadFocus === "token") {
     const ta = document.getElementById("token") as HTMLTextAreaElement | null;
     ta?.focus();
     if (ta && sel !== undefined) ta.setSelectionRange(sel, sel);
   }
 }
+window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 
 /** The nullifier of the invoice on screen, once it is registered by this supplier wallet. */
 function nullifierToCreate(): `0x${string}` | undefined {

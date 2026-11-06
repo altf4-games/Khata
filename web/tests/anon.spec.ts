@@ -28,7 +28,7 @@ function watchDirectRpc(page: Page) {
 test("reads go through Anon-RPC by default and the page makes no direct chain RPC request", async ({ page }) => {
   test.skip(process.env.ANON_E2E !== "1", "needs a browser that can reach the Anon-RPC gateway; set ANON_E2E=1");
   const direct = watchDirectRpc(page);
-  await page.goto("/");
+  await page.goto("/#app");
 
   // while Tor warms up, the page says what is happening (cold start is 8 to 17 s)
   await expect(page.getByRole("status").filter({ hasText: "Starting Anon-RPC" })).toBeVisible({ timeout: 10_000 });
@@ -49,7 +49,7 @@ test("reads go through Anon-RPC by default and the page makes no direct chain RP
 test("if Anon-RPC cannot start, the page says so and reads nothing directly until the user chooses to", async ({ page }) => {
   const direct = watchDirectRpc(page);
   // a specifier address with no contract behind it: the worker cannot boot
-  await page.goto("/?anonSpecifier=0x0000000000000000000000000000000000000001");
+  await page.goto("/?anonSpecifier=0x0000000000000000000000000000000000000001#app");
 
   const alert = page.getByRole("alert").filter({ hasText: "Anonymous reads are unavailable" });
   await expect(alert).toBeVisible({ timeout: 60_000 });
@@ -65,7 +65,7 @@ test("if Anon-RPC cannot start, the page says so and reads nothing directly unti
 });
 
 test("?reads=direct is an explicit opt-out and is labelled as such", async ({ page }) => {
-  await page.goto("/?reads=direct");
+  await page.goto("/?reads=direct#app");
   await expect(page.getByTestId("reads-chip")).toContainText("direct");
   await expect(page.getByTestId("reads-chip")).toContainText("not anonymous");
   await page.getByRole("tab", { name: /Investor/ }).click();
@@ -75,7 +75,7 @@ test("?reads=direct is an explicit opt-out and is labelled as such", async ({ pa
 test("an unreachable gateway is reported in plain words within seconds, with a choice and nothing read directly", async ({ page }) => {
   const direct = watchDirectRpc(page);
   // 203.0.113.0/24 is reserved for documentation and is not routed
-  await page.goto("/?anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ");
+  await page.goto("/?anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ#app");
   const alert = page.getByRole("alert").filter({ hasText: "Anonymous reads are unavailable" });
   await expect(alert).toBeVisible({ timeout: 60_000 });
   await expect(alert).toContainText("could not be reached over WebRTC");
@@ -85,7 +85,7 @@ test("an unreachable gateway is reported in plain words within seconds, with a c
 
 test("a slow start offers the choice while it keeps waiting", async ({ page }) => {
   const direct = watchDirectRpc(page);
-  await page.goto("/?anonSlowAfter=1500&anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ");
+  await page.goto("/?anonSlowAfter=1500&anonGateway=203.0.113.1:12298:uEiCH0VdbhryzJcMtCfB0vLA4sOvHdQ4hq5w7CopcwU59bQ#app");
   await expect(page.getByText("This is taking longer than usual")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Start over" })).toBeVisible();
   expect(direct).toEqual([]);
