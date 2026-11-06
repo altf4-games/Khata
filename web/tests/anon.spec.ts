@@ -119,3 +119,36 @@ test("a Tor start that takes longer than its deadline switches to Nym and says w
   await expect(page.getByTestId("reads-chip")).toHaveText(/Reads: Anon-RPC \(Nym\)/, { timeout: 120_000 });
   expect(direct, `direct chain RPC requests from the page: ${JSON.stringify(direct)}`).toEqual([]);
 });
+
+// Some visitors only want to get in. The switch is always one tap away, honest about what it gives up, and reversible.
+test("a visitor can switch to direct reads straight away, it sticks across a reload, and they can switch back", async ({ page }) => {
+  await page.goto("/#app");
+  const toggle = page.getByTestId("reads-toggle");
+  await expect(toggle).toBeVisible({ timeout: 10_000 });
+  await expect(toggle).toContainText("Read directly");
+  await expect(toggle).toContainText("not anonymous");
+  const box = await toggle.boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+
+  await toggle.click();
+  await expect(page.getByTestId("reads-chip")).toContainText("direct");
+  await expect(page.getByTestId("reads-chip")).toContainText("not anonymous");
+  await page.getByRole("tab", { name: /Investor/ }).click();
+  await expect(page.locator(".note").first()).toBeVisible({ timeout: 60_000 });
+
+  await page.reload();
+  await expect(page.getByTestId("reads-chip")).toContainText("direct"); // remembered
+  await expect(page.getByTestId("reads-toggle")).toContainText("Use Anon-RPC");
+
+  await page.getByTestId("reads-toggle").click();
+  await expect(page.getByTestId("reads-chip")).not.toContainText("not anonymous");
+  await expect(page.getByTestId("reads-toggle")).toContainText("Read directly");
+});
+
+test("the choice to read directly is not made for the visitor: a fresh visit starts on Anon-RPC", async ({ page }) => {
+  const direct = watchDirectRpc(page);
+  await page.goto("/#app");
+  await expect(page.getByTestId("reads-chip")).toContainText(/Anon-RPC/);
+  await page.waitForTimeout(2000);
+  expect(direct).toEqual([]);
+});

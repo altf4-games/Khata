@@ -37,7 +37,11 @@ const bootDeadlineMs = Number(params.get("anonBootDeadline") ?? 40_000);
 const fallbackAllowed = params.get("anonFallback") !== "off" && !params.get("anonSpecifier");
 
 export const traffic = new Traffic();
-export let state: AnonState = params.get("reads") === "direct" ? { kind: "direct" } : { kind: "starting", since: Date.now(), lines: [], network: "Tor" };
+// The visitor's own choice to read directly is remembered in this browser, and only that: a fresh visit starts on Anon-RPC.
+const STORE_KEY = "khata.reads";
+const remember = (v: "direct" | null) => { try { v ? localStorage.setItem(STORE_KEY, v) : localStorage.removeItem(STORE_KEY); } catch { /* storage may be blocked */ } };
+const remembered = () => { try { return localStorage.getItem(STORE_KEY) === "direct"; } catch { return false; } };
+export let state: AnonState = params.get("reads") === "direct" || remembered() ? { kind: "direct" } : { kind: "starting", since: Date.now(), lines: [], network: "Tor" };
 
 // two kinds of change: the state (re-render the page) and the counters (update the status chip in place)
 const stateListeners = new Set<() => void>();
@@ -134,7 +138,14 @@ export async function retryAnon() {
 export function chooseDirect() {
   worker?.close();
   worker = undefined;
+  remember("direct");
   set({ kind: "direct" });
+}
+/** Back from direct reads to Anon-RPC. */
+export function useAnon() {
+  remember(null);
+  state = { kind: "starting", since: Date.now(), lines: [], network: firstNetwork === "nym" ? "Nym" : "Tor" };
+  startAnon();
 }
 
 const methodsOf = (init?: RequestInit): string[] => {

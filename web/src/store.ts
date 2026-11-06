@@ -58,8 +58,12 @@ export function activeWallet(role: Role = store.role): DemoWallet | undefined {
 export const holdKey = (note: string, who: string) => `${note}:${who}`.toLowerCase();
 
 let seq = 0;
-export async function refresh() {
+/** A first load that fails on a flaky RPC tries again by itself, a few seconds apart, before it shows an error. */
+const AUTO_RETRIES = 2;
+const AUTO_RETRY_MS = 3000;
+export async function refresh(attempt = 0) {
   const mine = ++seq;
+  let retrying = false;
   store.loading = true;
   rerender();
   try {
@@ -85,9 +89,14 @@ export async function refresh() {
     Object.assign(store, { notes, chainNow: now, refreshedAt: Date.now(), elig, bal, hold, issued, loadError: "", loaded: true });
   } catch (e) {
     if (mine !== seq) return;
+    if (!store.loaded && attempt < AUTO_RETRIES) {
+      retrying = true; // stay in the loading state through the wait
+      setTimeout(() => { if (mine === seq) void refresh(attempt + 1); }, AUTO_RETRY_MS);
+      return;
+    }
     store.loadError = revertInfo(e).message;
   } finally {
-    if (mine === seq) {
+    if (mine === seq && !retrying) {
       store.loading = false;
       rerender();
     }

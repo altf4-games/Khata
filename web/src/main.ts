@@ -14,7 +14,7 @@ import { attesterDesk, createNotePanel, msgBanner, notesList, nowEst, walletBar 
 import { send } from "./tx";
 import { walletsFor, type Role } from "./wallets";
 import { credentialPanel, marketplace } from "./arkivViews";
-import { chipText, chooseDirect, slowAfterMs, onState, onTraffic, retryAnon, startAnon, state as anonState } from "./anon";
+import { chipText, chooseDirect, useAnon, slowAfterMs, onState, onTraffic, retryAnon, startAnon, state as anonState } from "./anon";
 import { startWatching } from "./arkivApp";
 import { refreshArkiv } from "./store";
 import { refusalFor } from "./errors";
@@ -228,6 +228,7 @@ function topbar() {
     el("div", { class: "chips" },
       el("span", { class: "chip hide-sm" }, el("span", { class: "dot on" }), "Whitechain Sepolia testnet"),
       readsChip(),
+      readsToggle(),
     )));
 }
 
@@ -235,6 +236,15 @@ function readsChip() {
   const c = chipText();
   const chip = el("span", { class: `chip reads ${c.tone}`, title: c.title, "data-testid": "reads-chip" }, el("span", { class: "dot" }), c.text);
   return chip;
+}
+/** One tap between private reads and direct reads, so a visitor who only wants to get in is never stuck waiting for Tor. */
+function readsToggle() {
+  const direct = anonState.kind === "direct";
+  return el("button", {
+    class: "chip-btn", "data-testid": "reads-toggle", type: "button",
+    title: direct ? "Read through Anon-RPC again: slower to start, hides your IP address from the RPC providers." : "Skip the private route and read straight from the RPC providers. Faster to start, but they see your IP address.",
+    onclick: direct ? useAnon : chooseDirect,
+  }, direct ? "Use Anon-RPC" : "Read directly (not anonymous)");
 }
 /** Updates the chip in place when only the counters changed, so a read does not re-render the whole page. */
 function refreshChip() {
