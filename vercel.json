@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "buildCommand": "npm run web:build",
+  "outputDirectory": "dist",
+  "functions": { "api/sign.ts": { "maxDuration": 10 } }
+}

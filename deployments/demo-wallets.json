@@ -1,0 +1,32 @@
+[
+  {
+    "id": "supplier",
+    "label": "Supplier (demo)",
+    "role": "supplier",
+    "address": "0xa03d3c24469DD58EAE3AE230781f293850A7686b"
+  },
+  {
+    "id": "investor",
+    "label": "Investor A (demo)",
+    "role": "investor",
+    "address": "0x54E2221e61E436D7FF101640CF1edCC983dd75A5"
+  },
+  {
+    "id": "investor2",
+    "label": "Investor B (demo)",
+    "role": "investor",
+    "address": "0xa252140801caE9102c21C246Fa24b0c3827905A7"
+  },
+  {
+    "id": "debtor",
+    "label": "Debtor (demo)",
+    "role": "debtor",
+    "address": "0x51AA941485d769C56fFbc3a95c6e2628A1B07dE3"
+  },
+  {
+    "id": "attester",
+    "label": "Attester (demo)",
+    "role": "attester",
+    "address": "0xB288ae1aaAeB761520D4A72bb87DbB6ef11126Db"
+  }
+]

@@ -1,9 +1,11 @@
-// Labelled demo wallets. Their keys come from the ignored root .env at dev time (DEMO_*_KEY) and are never committed.
-// With no keys present the app is read-only: it still verifies and shows notes, but cannot send transactions.
-import { createWalletClient, type Address, type Hex } from "viem";
-import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+// Labelled demo wallets. The browser knows only their public addresses (deployments/demo-wallets.json). Every signature is made by
+// the server signer at /api/sign, which holds the keys in server-side environment variables, so no key is ever in the page.
+import { createWalletClient, type Address, type Hex, type LocalAccount } from "viem";
+import { toAccount } from "viem/accounts";
 import { whitechainSepolia } from "./chain";
 import { chainTransport } from "./anon";
+import demoWallets from "../../deployments/demo-wallets.json";
+import { wire } from "../../api/_wire.ts";
 
 export type Role = "supplier" | "investor" | "debtor" | "attester";
 
@@ -12,23 +14,39 @@ export interface DemoWallet {
   label: string;
   role: Role;
   address: Address;
-  account: PrivateKeyAccount;
+  account: LocalAccount;
   client: ReturnType<typeof createWalletClient>;
 }
 
-const env = import.meta.env as Record<string, string | undefined>;
-const SPEC: { id: string; label: string; role: Role; key: string | undefined }[] = [
-  { id: "supplier", label: "Supplier (demo)", role: "supplier", key: env.DEMO_SUPPLIER_KEY },
-  { id: "investor", label: "Investor A (demo)", role: "investor", key: env.DEMO_INVESTOR_KEY },
-  { id: "investor2", label: "Investor B (demo)", role: "investor", key: env.DEMO_INVESTOR2_KEY },
-  { id: "debtor", label: "Debtor (demo)", role: "debtor", key: env.DEMO_DEBTOR_KEY },
-  { id: "attester", label: "Attester (demo)", role: "attester", key: env.DEMO_ATTESTER_KEY },
-];
+/** Asks the server signer. A refusal or an unconfigured wallet comes back as a plain error, never a silent success. */
+async function remoteSign(wallet: string, body: Record<string, unknown>): Promise<Hex> {
+  let res: Response;
+  try {
+    // Signing is not a chain read, so it goes straight to this site's own server and never through Anon-RPC.
+    res = await fetch("/api/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(wire.encode({ wallet, ...body })) });
+  } catch {
+    throw new Error("The demo signer could not be reached.");
+  }
+  const json = (await res.json().catch(() => ({}))) as { signed?: Hex; error?: string };
+  if (!res.ok || !json.signed) throw new Error(json.error ?? `The demo signer refused (HTTP ${res.status}).`);
+  return json.signed;
+}
 
-export const wallets: DemoWallet[] = SPEC.filter((s) => s.key && /^0x[0-9a-fA-F]{64}$/.test(s.key)).map((s) => {
-  const account = privateKeyToAccount(s.key as Hex);
+function remoteAccount(id: string, address: Address): LocalAccount {
+  return toAccount({
+    address,
+    signTransaction: (tx) => remoteSign(id, { kind: "transaction", tx }),
+    signTypedData: ((td: unknown) => remoteSign(id, { kind: "typedData", typedData: td })) as never,
+    signMessage: async () => {
+      throw new Error("Demo wallets sign transactions and the app's typed data only, never free-form messages.");
+    },
+  });
+}
+
+export const wallets: DemoWallet[] = (demoWallets as { id: string; label: string; role: Role; address: Address }[]).map((s) => {
+  const account = remoteAccount(s.id, s.address);
   return {
-    id: s.id, label: s.label, role: s.role, address: account.address, account,
+    ...s, account,
     client: createWalletClient({ account, chain: whitechainSepolia, transport: chainTransport() }),
   };
 });
