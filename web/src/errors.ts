@@ -7,6 +7,15 @@ export interface Refusal {
 
 type Args = readonly unknown[] | undefined;
 
+/** A 6-decimal amount (USDT or notes) written exactly: 0.999999 stays 0.999999, 1.5 is 1.50. */
+function amount6(v: unknown): string {
+  let n: bigint;
+  try { n = BigInt(String(v)); } catch { return String(v); }
+  const neg = n < 0n; if (neg) n = -n;
+  const frac = (n % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "").padEnd(2, "0");
+  return `${neg ? "-" : ""}${n / 1_000_000n}.${frac}`;
+}
+
 const REASON_TEXT = [
   "",
   "It has no credential.",
@@ -104,7 +113,7 @@ export function refusalFor(name: string | undefined, args: Args, fallback?: stri
     case "FundingEnded":
       return { title: "Funding has ended", detail: "The funding deadline for this note has passed." };
     case "ExceedsAvailable":
-      return { title: "Not enough notes left to buy", detail: `Only ${(Number(first) / 1e6).toFixed(2)} notes are still for sale. Choose a smaller amount.` };
+      return { title: "Not enough notes left to buy", detail: `Only ${amount6(first)} notes are still for sale. Choose a smaller amount.` };
     case "ZeroAmount":
       return { title: "Enter an amount", detail: "The amount must be more than zero." };
     case "ReceiverNotEligible":
@@ -134,6 +143,20 @@ export function refusalFor(name: string | undefined, args: Args, fallback?: stri
       return { title: "Refused: the signer is not an accepted attester", detail: "Only attesters added by the registry owner are trusted." };
     case "CredentialIsRevoked":
       return { title: "Refused: that credential was revoked", detail: "A revoked credential ID cannot be registered again." };
+    case "NotCurrentSellerWallet":
+      return { title: "Refused: this wallet is no longer the seller's authorised wallet", detail: "The attester has moved this GSTIN to another wallet, or the binding has lapsed. Ask the attester to authorise this wallet again, or use the current one." };
+    case "CredentialSuperseded":
+      return { title: "Refused: a newer credential already replaced this one", detail: "Once a credential is replaced for a wallet it cannot be registered again. Ask the attester for a fresh one." };
+    case "ReplacementNeedsSubjectOrAttester":
+      return { title: "Refused: only the wallet itself or its attester can replace its credential", detail: "This wallet already has a credential. Switch to that wallet (or the attester) to register a different one." };
+    case "InvalidWallet":
+      return { title: "Refused: the seller wallet is empty", detail: "Choose the wallet to authorise for this GSTIN." };
+    case "VersionTooFar":
+      return { title: "Refused: that binding version jumps too far ahead", detail: "A seller binding's version must be close to the current one. Sign it again from the attester view, which picks the next version." };
+    case "ERC20InsufficientBalance":
+      return { title: "Not enough balance", detail: "This wallet does not hold enough of that token for the transfer. Lower the amount." };
+    case "StringsInsufficientHexLength":
+      return { title: "The note's name could not be written", detail: "This is an internal formatting limit in the contract. Try again; if it repeats, report it." };
     default:
       if (fallback && /insufficient funds|exceeds the balance/i.test(fallback)) {
         return { title: "This wallet is out of testnet WBT", detail: "It cannot pay the network fee. Send it a little testnet WBT from the faucet or the deployer." };

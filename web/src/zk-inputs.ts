@@ -32,10 +32,14 @@ export function buildCircuitInput(token: string, modulusHex: `0x${string}`, owne
   if (signed.length > MAX_SIGNED) throw new Error(`This invoice's signed text is ${signed.length} bytes, too long for the proof circuit (at most ${MAX_SIGNED}).`);
 
   const n = BigInt(modulusHex);
+  if (n >> 2047n !== 1n) throw new Error("Proofs work only with 2048-bit signing keys, and this invoice's key is a different size. Finance it with the ordinary path.");
   const sig = BigInt("0x" + hex(b64u(s)));
+  if (sig >= n) throw new Error("The invoice's signature does not fit its key, so it cannot be proved.");
   const redc = (1n << (2n * 2048n + 4n)) / n; // the Barrett parameter the big-number library expects
 
-  const payload = new TextDecoder().decode(b64u(p));
+  // one character per byte, so every index below is a byte offset, which is what the circuit reads (UTF-8 text such as a
+  // seller name in Devanagari or with diacritics would otherwise shift every later position)
+  const payload = Array.from(b64u(p), (b) => String.fromCharCode(b)).join("");
   const after = (needle: string) => {
     const i = payload.indexOf(needle);
     if (i < 0) throw new Error(`The invoice has no ${needle.replace(/\\"/g, "").replace(/:.*/, "")} field.`);
@@ -43,6 +47,7 @@ export function buildCircuitInput(token: string, modulusHex: `0x${string}`, owne
   };
   const valueStart = after('\\"TotInvVal\\":');
   const valueEnd = payload.indexOf(",", valueStart);
+  if (valueEnd < 0) throw new Error("This invoice lists its value last, which the proof circuit does not read. Finance it with the ordinary path.");
   const storage = Array.from({ length: MAX_SIGNED }, (_, i) => String(i < signed.length ? signed.charCodeAt(i) : 0));
   return {
     data: { storage, len: String(signed.length) },

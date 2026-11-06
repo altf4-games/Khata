@@ -22,6 +22,7 @@ import { buildCircuitInput } from "./zk-inputs";
 import { evidencePage } from "./evidence";
 import { classify, formatRupees } from "./verdict";
 import { decodeImageFile, startCamera, type CameraScan } from "./scan";
+import { MAX_TOKEN_BYTES, normalizeToken } from "./token";
 
 // ---------- state ----------
 type View =
@@ -53,8 +54,20 @@ const state = {
 const camVideo = el("video", { id: "cam", muted: true, playsinline: true, "aria-label": "Camera preview" });
 
 let checkSeq = 0;
+/** The token the panel is about: the visitor's text with whitespace and any wrapping removed. */
+function tokenNow(): string {
+  return normalizeToken(state.token).token;
+}
+
 async function check() {
-  const token = state.token.trim();
+  if ("tooLarge" in normalizeToken(state.token)) {
+    ++checkSeq;
+    state.action = { kind: "none" };
+    state.checkedToken = "";
+    state.view = { kind: "refused", title: "That text is too long to be an e-invoice QR", detail: `An e-invoice QR token is at most ${MAX_TOKEN_BYTES} characters. Paste only the QR's text, or scan the QR.` };
+    return render();
+  }
+  const token = tokenNow();
   const seq = ++checkSeq;
   state.action = { kind: "none" };
   state.checkedToken = "";
@@ -81,7 +94,7 @@ async function check() {
 async function finance() {
   // Only ever act on the exact text the panel has verified, never on whatever is in the box right now.
   const token = state.checkedToken;
-  if (!token || state.token.trim() !== token) return;
+  if (!token || tokenNow() !== token) return;
   const w = activeWallet("supplier");
   state.action = { kind: "simulating" };
   render();
@@ -117,7 +130,7 @@ async function finance() {
 /** Binds the invoice by zero-knowledge proof: the proof is made here, so the token and the IRN never reach the chain. */
 async function financePrivately() {
   const token = state.checkedToken;
-  if (!token || state.token.trim() !== token) return;
+  if (!token || tokenNow() !== token) return;
   const w = activeWallet("supplier");
   if (!w) return;
   const say = (note: string) => { if (state.checkedToken === token) { state.action = { kind: "proving", note }; render(); } };
@@ -212,6 +225,7 @@ async function toggleCamera() {
     },
   });
   state.cameraStarting = false;
+  if (state.camera && !inApp()) stopCamera(); // the visitor left while it was starting
   if (state.camera) render();
 }
 
@@ -468,12 +482,12 @@ function actions(r: Inspection) {
   const label = r.alreadyBound ? "Try to finance it again" : "Finance this invoice";
   const busy = a.kind === "simulating" || a.kind === "sending" || a.kind === "proving";
   wrap.append(el("div", { class: "row", style: "margin-top:0" },
-    el("button", { class: "btn primary grow", onclick: finance, disabled: busy || state.token.trim() !== state.checkedToken }, busy ? el("span", { class: "spinner" }) : null, a.kind === "sending" ? "Waiting for the network…" : label),
+    el("button", { class: "btn primary grow", onclick: finance, disabled: busy || tokenNow() !== state.checkedToken }, busy ? el("span", { class: "spinner" }) : null, a.kind === "sending" ? "Waiting for the network…" : label),
     activeWallet("supplier") ? el("span", { class: "foot", style: "align-self:center" }, "Sending as ", el("span", { class: "mono" }, short(activeWallet("supplier")!.address, 6, 4))) : null,
   ));
   if (activeWallet("supplier") && r.signatureValid && !r.alreadyBound) {
     wrap.append(el("div", { class: "row", style: "margin-top:.5rem" },
-      el("button", { class: "btn grow", "data-testid": "finance-private", onclick: financePrivately, disabled: busy || state.token.trim() !== state.checkedToken },
+      el("button", { class: "btn grow", "data-testid": "finance-private", onclick: financePrivately, disabled: busy || tokenNow() !== state.checkedToken },
         "Finance privately (zero-knowledge proof)"),
     ), el("p", { class: "foot" }, "Proves, in this browser, that the government's key signed this invoice. The chain records only a one-way ID for it, the seller's GSTIN hash and the value: not the IRN, the buyer or the document. Takes up to a minute."));
   }
@@ -579,12 +593,19 @@ function render() {
     if (ta && sel !== undefined) ta.setSelectionRange(sel, sel);
   }
 }
-window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+/** The camera belongs to the app screen: leaving it, or the page, switches the camera off. */
+function stopCamera() {
+  state.camera?.stop();
+  state.camera = undefined;
+  state.cameraNote = "";
+}
+window.addEventListener("hashchange", () => { if (!inApp()) stopCamera(); render(); window.scrollTo(0, 0); });
+window.addEventListener("pagehide", stopCamera);
 
 /** The nullifier of the invoice on screen, once it is registered by this supplier wallet. */
 function nullifierToCreate(): `0x${string}` | undefined {
   const v = state.view;
-  if (v.kind !== "result" || !v.r.alreadyBound || state.token.trim() !== state.checkedToken) return undefined;
+  if (v.kind !== "result" || !v.r.alreadyBound || tokenNow() !== state.checkedToken) return undefined;
   return v.r.nullifier;
 }
 

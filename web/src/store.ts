@@ -8,6 +8,7 @@ import {
 } from "./notes";
 import { walletsFor, wallets, type DemoWallet, type Role } from "./wallets";
 import type { Sent } from "./tx";
+import { doneMsg, type ChainName } from "./outcome";
 import { loadArkiv, type ArkivSnapshot } from "./arkivApp";
 import { ArkivUnavailable } from "./arkiv";
 
@@ -16,6 +17,7 @@ export interface Msg {
   title: string;
   detail?: string;
   hash?: string;
+  chain?: ChainName;
 }
 
 export interface IssuedCredential {
@@ -116,7 +118,7 @@ export async function run(key: string, busy: string, fn: () => Promise<Sent | un
   rerender();
   try {
     const sent = await fn();
-    store.msgs[key] = { kind: "ok", title: done, detail: detail ?? (sent ? `Used ${sent.gasUsed.toLocaleString("en-IN")} gas.` : undefined), hash: sent?.hash };
+    store.msgs[key] = doneMsg(sent, done, detail);
   } catch (e) {
     const info = revertInfo(e);
     const r = refusalFor(info.name, info.args, info.message);
@@ -139,7 +141,9 @@ export function refreshArkiv(now = nowEst2()): Promise<void> {
 async function readArkiv(now: number) {
   const mine = ++aseq;
   try {
-    const disc = Math.round(Number(store.form["m:disc"] ?? "0") * 100);
+    // a filter, not an order: anything that is not a percentage from 0 to 100 reads as no minimum
+    const pctIn = Number(store.form["m:disc"] ?? "0");
+    const disc = Number.isFinite(pctIn) && pctIn > 0 ? Math.min(Math.round(pctIn * 100), 10_000) : 0;
     const dueWithin = Number(store.form["m:due"] ?? "0");
     const snap = await loadArkiv(now, {
       minDiscountBps: Number.isFinite(disc) ? disc : 0, status: store.form["m:status"] ?? "open",

@@ -5,12 +5,16 @@ import { publicClient, revertInfo } from "./chain";
 const LOW_WBT = 10_000_000_000_000_000n; // 0.01 WBT
 import type { DemoWallet } from "./wallets";
 
-export interface Sent {
-  hash: `0x${string}`;
-  gasUsed: bigint;
+export type { Outcome as Sent } from "./outcome";
+import type { Outcome as Sent } from "./outcome";
+import { oneAtATime } from "./queue";
+
+/** Sends from a demo wallet, one transaction at a time per wallet so two clicks never race for the same nonce. */
+export function send(w: DemoWallet, address: Address, abi: Abi, functionName: string, args: unknown[], gas?: bigint): Promise<Sent> {
+  return oneAtATime(w.address, () => sendNow(w, address, abi, functionName, args, gas));
 }
 
-export async function send(w: DemoWallet, address: Address, abi: Abi, functionName: string, args: unknown[], gas?: bigint): Promise<Sent> {
+async function sendNow(w: DemoWallet, address: Address, abi: Abi, functionName: string, args: unknown[], gas?: bigint): Promise<Sent> {
   let sim;
   try {
     sim = await publicClient.simulateContract({ address, abi, functionName, args, account: w.address, gas });

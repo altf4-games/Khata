@@ -52,3 +52,31 @@ test("limbs are 18 numbers of 120 bits, least significant first", () => {
   expect(l[0]).toBe("5");
   expect(l[1]).toBe("1");
 });
+
+// Field positions are byte offsets into the decoded payload (what the circuit reads), not JavaScript string indices.
+const enc = (o: unknown) => Buffer.from(typeof o === "string" ? o : JSON.stringify(o)).toString("base64url");
+function tokenWith(dataJson: string) {
+  return `${enc({ alg: "RS256", kid: "X" })}.${enc(JSON.stringify({ iss: "NIC", data: dataJson }))}.${Buffer.alloc(256, 1).toString("base64url")}`;
+}
+const MOD = ("0x" + read("contracts/test/fixtures/demo-irp/demo-irp.modulus.hex").replace(/^0x/, "")) as `0x${string}`;
+
+test("a non-ASCII character before the fields does not shift their positions", () => {
+  const data = JSON.stringify({ SellerName: "Śrī Gaṇeśa Traders", SellerGstin: "27DEMOS1234A1Z5", DocTyp: "INV", TotInvVal: 42000, Irn: "ab".repeat(32) });
+  const got = buildCircuitInput(tokenWith(data), MOD, OWNER, true);
+  const payload = Buffer.from(tokenWith(data).split(".")[1], "base64url");
+  const at = (needle: string) => payload.indexOf(Buffer.from(needle)) + Buffer.byteLength(needle);
+  expect(got.pos.gstin).toBe(String(at('\\"SellerGstin\\":\\"')));
+  expect(got.pos.irn).toBe(String(at('\\"Irn\\":\\"')));
+  expect(payload.subarray(Number(got.pos.gstin), Number(got.pos.gstin) + 15).toString()).toBe("27DEMOS1234A1Z5");
+});
+
+test("an invoice whose value is the last field is refused with a plain reason, not a negative length", () => {
+  const data = JSON.stringify({ SellerGstin: "27DEMOS1234A1Z5", DocTyp: "INV", Irn: "ab".repeat(32), TotInvVal: 42000 });
+  expect(() => buildCircuitInput(tokenWith(data), MOD, OWNER, true)).toThrow(/value/i);
+});
+
+test("a key that is not 2048 bits is refused with a plain reason before proving", () => {
+  const data = JSON.stringify({ SellerGstin: "27DEMOS1234A1Z5", DocTyp: "INV", TotInvVal: 42000, Irn: "ab".repeat(32) });
+  const big = ("0x" + "f".repeat(1024)) as `0x${string}`; // 4096 bits
+  expect(() => buildCircuitInput(tokenWith(data), big, OWNER, true)).toThrow(/2048-bit/);
+});

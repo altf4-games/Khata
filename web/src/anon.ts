@@ -7,6 +7,7 @@ import { http, type Transport } from "viem";
 import { Traffic } from "./traffic";
 import { checkPin } from "./pin";
 import { readParams } from "./params";
+import { waitFor } from "./wait";
 
 /** The tor-js anon-client's on-chain specifier (Ethereum mainnet). Its bytes are checked against `workerHash()` before they run. */
 const DEFAULT_SPECIFIER = "0x700dA3193D35fA54Cd3fBf29B66f2a2A0385659e";
@@ -175,7 +176,9 @@ export const routedFetch: typeof fetch = async (input, init) => {
   }
   if (state.kind === "failed") throw new Error("Anonymous reads are unavailable. Retry them or choose direct reads.");
   try {
-    const res = await worker!.fetch(input as string, init as never);
+    // during a retry the old worker is gone and the new one is not made yet: wait for it rather than fail
+    const w = worker ?? (await waitFor(() => worker, () => (state.kind === "failed" ? "Anonymous reads are unavailable. Retry them or choose direct reads." : state.kind === "direct" ? "Reads switched to direct; try again." : undefined), 60_000));
+    const res = await w.fetch(input as string, init as never);
     traffic.read("anon", calls);
     touch();
     return res as Response;

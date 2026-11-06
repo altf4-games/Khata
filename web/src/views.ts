@@ -10,6 +10,8 @@ import { activeWallet, holdKey, refresh, refreshArkiv, rerender, run, store, typ
 import { explainTransfer, nowChain, parseUsdt, quote, span, usdt, when, type NoteInfo } from "./notes";
 import { nameOf, walletsFor, type DemoWallet, type Role } from "./wallets";
 import { send } from "./tx";
+import { txLink } from "./outcome";
+import { wholeIn } from "./queue";
 import { closeListing, listingControl } from "./arkivViews";
 import { arkivWalletFor } from "./arkivApp";
 import { ELIGIBILITY_TYPES, REVOCATION_TYPES, SELLER_BINDING_TYPES } from "./eip712";
@@ -20,7 +22,7 @@ export function msgBanner(key: string): Child {
   const m: Msg | undefined = store.msgs[key];
   if (!m) return null;
   if (m.kind === "busy") return el("div", { class: "banner info", role: "status" }, el("span", { class: "spinner" }), el("div", {}, el("strong", {}, m.title), el("p", {}, "Waiting for the network to confirm. Whitechain blocks take a few seconds.")));
-  const link = m.hash ? [" ", el("a", { href: txUrl(m.hash), target: "_blank", rel: "noopener" }, "View the transaction")] : [];
+  const link = m.hash ? [" ", el("a", { href: txLink(m.hash, m.chain), target: "_blank", rel: "noopener" }, m.chain === "arkiv" ? "View the Arkiv transaction" : "View the transaction")] : [];
   return el("div", { class: `banner ${m.kind}`, role: m.kind === "bad" ? "alert" : "status" }, el("span", { class: "ic" }, m.kind === "ok" ? "✓" : "✕"),
     el("div", {}, el("strong", {}, m.title), m.detail || link.length ? el("p", {}, m.detail ?? "", ...link) : null));
 }
@@ -93,7 +95,8 @@ export function noteCard(n: NoteInfo, role: Role): HTMLElement {
   const now = nowEst();
   const pct = n.faceValue === 0n ? 0 : Number((n.fundedFace * 1000n) / n.faceValue) / 10;
   const pay = 10000 - n.discountBps;
-  const key = `note:${n.address}`;
+  // per wallet: one role's "Funded" or "refused" banner is not shown to another role looking at the same note
+  const key = `note:${n.address}:${(w?.address ?? role).toLowerCase()}`;
   const card = el("article", { class: "card note", "aria-label": n.name },
     el("div", { class: "note-head" }, el("h3", {}, n.name), phaseBadge(n)),
     el("p", { class: "big" }, `${usdt(n.faceValue)} USDT`, el("small", {}, " face value")),
@@ -151,10 +154,15 @@ function fundPanel(n: NoteInfo, w: DemoWallet, key: string): HTMLElement {
   const max = n.available < 1_000_000n ? n.available : 1_000_000n;
   wrap.append(amountField(n, key, usdt(max).replace(/\.00$/, "")));
   const price = el("p", { class: "foot", id: `quote-${n.address}` });
+  let asked = 0; // replies over Tor can arrive out of order; only the newest question's answer is shown
   const upd = async () => {
+    const mine = ++asked;
     const a = parseUsdt(val(`${key}:amt`, ""));
     if (!a || a === 0n) { price.textContent = "Enter an amount to see the price."; return; }
-    try { price.textContent = `You pay ${usdt(await quote(n.address, a))} USDT now; the seller receives it directly.`; } catch { price.textContent = ""; }
+    try {
+      const p = await quote(n.address, a);
+      if (mine === asked) price.textContent = `You pay ${usdt(p)} USDT now; the seller receives it directly.`;
+    } catch { if (mine === asked) price.textContent = ""; }
   };
   void upd();
   wrap.querySelector("input")!.addEventListener("input", () => void upd());
@@ -230,7 +238,7 @@ function transferPanel(n: NoteInfo, w: DemoWallet, key: string): HTMLElement {
       el("button", { class: "btn dark grow", disabled: busy(key), onclick: () => {
         const a = parseUsdt(val(`${key}:tamt`, "0.1"));
         const to = val(k, others[0]?.address ?? "") as Address;
-        if (!a) return;
+        if (!a) { store.msgs[key] = { kind: "bad", title: "Enter an amount", detail: "Use a number such as 1 or 0.5, with at most 6 decimals." }; return rerender(); }
         void run(key, "Sending…", () => send(w, n.address, noteAbi, "transfer", [to, a]), "Notes sent");
       } }, "Send"),
     ),
@@ -282,9 +290,9 @@ export function createNotePanel(nullifier: `0x${string}`): HTMLElement {
         const due = Math.round(Number(val("c:due", "10")) * unit());
         const disc = Math.round(Number(val("c:disc", "5")) * 100);
         const grace = Math.round(Number(val("c:grace", "10")) * 60);
-        const tier = Number(val("c:tier", "1"));
-        if (![due, disc, grace, tier].every(Number.isFinite) || due <= 0 || disc < 0) {
-          store.msgs[key] = { kind: "bad", title: "Check the terms", detail: "Use positive numbers for the due time, and zero or more for the discount." };
+        const tier = wholeIn(val("c:tier", "1"), 0, 255);
+        if (![due, disc, grace].every(Number.isFinite) || due <= 0 || disc < 0 || grace < 0 || tier === undefined) {
+          store.msgs[key] = { kind: "bad", title: "Check the terms", detail: "Use positive numbers for the due time, zero or more for the discount and grace, and a whole number for the tier." };
           return rerender();
         }
         void run(key, "Creating the note…", async () => {
@@ -312,8 +320,8 @@ export function attesterDesk(): HTMLElement[] {
   const issueNow = (mode: "arkiv" | "direct") => {
     const subject = val("a:subject", investors[0]?.address ?? "") as Address;
     const secs = Math.round(Number(val("a:len", "5")) * Number(val("a:unit", "60")));
-    const tier = Number(val("a:tier", "2"));
-    if (!Number.isFinite(secs) || secs <= 0 || !Number.isFinite(tier)) { store.msgs[issueKey] = { kind: "bad", title: "Check the values", detail: "Use a positive validity and a tier number." }; return rerender(); }
+    const tier = wholeIn(val("a:tier", "2"), 0, 3);
+    if (!Number.isFinite(secs) || secs <= 0 || tier === undefined) { store.msgs[issueKey] = { kind: "bad", title: "Check the values", detail: "Use a positive validity and a whole-number tier from 0 to 3." }; return rerender(); }
     const signIt = async () => {
       const credId = keccak256(toHex(`${subject}:${Date.now()}`));
       const validUntil = (await nowChain()) + secs; // the chain's clock, not this page's estimate
@@ -332,7 +340,7 @@ export function attesterDesk(): HTMLElement[] {
       const s = await signIt();
       const r = await publishCredential(arkivWalletFor(w), { subject, attester: w.address, tier, jurisdiction: 356, validUntil: s.validUntil, credId: s.credId, signature: s.signature });
       void refreshArkiv();
-      return { hash: r.txHash as `0x${string}`, gasUsed: 0n };
+      return { hash: r.txHash as `0x${string}`, gasUsed: 0n, chain: "arkiv" };
     }, "Credential published on Arkiv", "The investor finds it there and activates it on Whitechain, paying their own fee. Nothing is enforced until then.");
   };
   const issue = el("section", { class: "card", "aria-labelledby": "h-issue" }, el("span", { class: "kicker" }, "Credentials"), el("h2", { id: "h-issue" }, "Issue an investor credential"),
@@ -363,14 +371,14 @@ export function attesterDesk(): HTMLElement[] {
         class: "btn", disabled: busy(rk),
         onclick: () => void run(rk, "Signing the revocation, publishing it on Arkiv and applying it…", async () => {
           const sig = await sign(w, REVOCATION_TYPES, "Revocation", { credId: c.credId });
-          let note = "";
+          let onArkiv = true;
           try {
             await publishRevocation(arkivWalletFor(w), { attester: w.address, credId: c.credId, signature: sig }, c.validUntil);
             void refreshArkiv();
-          } catch { note = " Arkiv could not be reached, so only Whitechain was updated."; }
+          } catch { onArkiv = false; }
           const sent = await send(w, attestersAddress, attestersAbi, "revoke", [{ credId: c.credId }, sig]);
-          store.msgs[rk] = { kind: "ok", title: "Credential revoked", detail: "Published on Arkiv and applied on Whitechain. The wallet can no longer receive notes, but can still redeem what it holds." + note, hash: sent.hash };
-          return undefined;
+          const effect = "The wallet can no longer receive notes, but can still redeem what it holds.";
+          return { ...sent, detail: onArkiv ? `Published on Arkiv and applied on Whitechain. ${effect}` : `Applied on Whitechain. Arkiv could not be reached, so the revocation is not published there yet. ${effect}` };
         }, "Credential revoked"),
       }, "Revoke") : null,
       msgBanner(rk)));

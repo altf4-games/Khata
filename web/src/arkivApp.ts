@@ -23,6 +23,7 @@ export interface ArkivSnapshot {
   revocations: CheckedRevocation[];
   listings: CheckedListing[]; // the marketplace: filtered by the investor's choices
   ownListings: CheckedListing[]; // every listing by the demo sellers, unfiltered, so a seller always sees their own state
+  superseded: Set<string>; // "attester:credId" (lower case) that Whitechain will refuse to register again
 }
 
 const attesterCache = new Map<string, boolean>();
@@ -42,7 +43,9 @@ export async function loadArkiv(now: number, filter: { minDiscountBps?: number; 
   const attesterAddrs = wallets.filter((w) => w.role === "attester").map((w) => w.address);
   const sellerAddrs = wallets.filter((w) => w.role === "supplier").map((w) => w.address);
   const [creds, listings, revs, own] = await Promise.all([
-    findAllCredentials(ark.pub, { notBefore: now }),
+    // only credentials for the labelled wallets this app can act as: anyone can write credential entities, and a flood
+    // of them for strangers must not slow every read
+    Promise.all(wallets.map((w) => findAllCredentials(ark.pub, { subject: w.address, notBefore: now }))).then((x) => x.flat()),
     findListings(ark.pub, { dueAfter: now - 6 * 3600, limit: 100, minDiscountBps: filter.minDiscountBps, status: filter.status || undefined, dueBefore: filter.dueWithinSeconds ? now + filter.dueWithinSeconds : undefined, sort: filter.sort }),
     Promise.all(attesterAddrs.map((a) => findRevocations(ark.pub, { attester: a }))).then((x) => x.flat()),
     Promise.all(sellerAddrs.map((a) => findListings(ark.pub, { dueAfter: now - 6 * 3600, seller: a, limit: 100 }))).then((x) => x.flat()),
@@ -59,7 +62,13 @@ export async function loadArkiv(now: number, filter: { minDiscountBps?: number; 
     const v = await verifyListing(rec, { factoryNoteOf, noteSeller }).catch(() => ({ ok: false as const, reason: "The chain could not confirm this listing." }));
     return { rec, ok: v.ok, reason: v.ok ? undefined : v.reason };
   }));
-  return { credentials, revocations, listings: await check(listings), ownListings: await check(own) };
+  // a credential that a newer one replaced can never be registered again; asking Whitechain keeps it off the Activate button
+  const superseded = new Set<string>();
+  await Promise.all(credentials.filter((c) => c.ok).map(async (c) => {
+    const gone = (await publicClient.readContract({ address: attestersAddress, abi: attestersAbi, functionName: "superseded", args: [c.rec.attester, c.rec.credId] }).catch(() => false)) as boolean;
+    if (gone) superseded.add(`${c.rec.attester.toLowerCase()}:${c.rec.credId.toLowerCase()}`);
+  }));
+  return { credentials, revocations, listings: await check(listings), ownListings: await check(own), superseded };
 }
 
 /** Starts listening for Arkiv changes; `onChange` is called at most once per second, so a burst of events costs one refresh. */

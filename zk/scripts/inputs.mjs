@@ -17,7 +17,8 @@ const limbs = (x) => Array.from({ length: 18 }, (_, i) => ((x >> BigInt(120 * i)
 const redc = (1n << (2n * 2048n + 4n)) / n; // the Barrett parameter the big-number library expects
 
 // positions of the values inside the decoded payload
-const payload = Buffer.from(p, "base64url").toString("utf8");
+// latin1 keeps one character per byte, so indexOf gives the byte offsets the circuit reads
+const payload = Buffer.from(p, "base64url").toString("latin1");
 const at = (needle) => { const i = payload.indexOf(needle); if (i < 0) throw new Error(`missing ${needle}`); return i + needle.length; };
 const tvMarker = '\\"TotInvVal\\":';
 const valueStart = at(tvMarker);

@@ -29,9 +29,9 @@ export function credentialPanel(w: DemoWallet): HTMLElement {
     return panel;
   }
   const mine = store.arkiv.credentials.filter((c) => c.rec.subject.toLowerCase() === k);
-  const good = pickActivatable(mine, store.arkiv.revocations);
-  const bad = mine.filter((c) => !c.ok);
   const active = e && e.reason === "Eligible";
+  const good = pickActivatable(mine, store.arkiv.revocations, { superseded: store.arkiv.superseded, current: active ? { tier: e.tier, validUntil: e.validUntil } : undefined });
+  const bad = mine.filter((c) => !c.ok);
 
   if (active) {
     panel.append(el("div", { class: "banner ok" }, el("span", { class: "ic" }, "✓"), el("div", {}, el("strong", {}, "Active on Whitechain"),
@@ -55,7 +55,8 @@ export function credentialPanel(w: DemoWallet): HTMLElement {
   }
   // a verified revocation that Whitechain has not seen yet
   if (active && e?.credId) {
-    const rev = store.arkiv.revocations.find((r) => r.ok && r.rec.credId.toLowerCase() === e.credId!.toLowerCase());
+    // a revocation only counts for the attester who signed it (Whitechain scopes revocations by signer)
+    const rev = store.arkiv.revocations.find((r) => r.ok && r.rec.credId.toLowerCase() === e.credId!.toLowerCase() && r.rec.attester.toLowerCase() === e.attester?.toLowerCase());
     if (rev) {
       const rk = `rev:${rev.rec.credId}`;
       panel.append(
@@ -130,7 +131,7 @@ export function listingControl(n: NoteInfo, w: DemoWallet): HTMLElement | null {
         onclick: () => void run(xk, "Extending the listing…", async () => {
           const r = await extendListing(arkivWalletFor(w), existing.rec.entityKey, 3600);
           void refreshArkiv();
-          return { hash: r.txHash as Hex, gasUsed: 0n };
+          return { hash: r.txHash as Hex, gasUsed: 0n, chain: "arkiv" };
         }, "Listing extended by an hour", "It stays visible while the debtor is in the grace period."),
       }, "Extend the listing")) : null,
       inGrace ? msgBanner(xk) : null);
@@ -144,7 +145,7 @@ export function listingControl(n: NoteInfo, w: DemoWallet): HTMLElement | null {
         const rec = { note: n.address, seller: n.seller, nullifier: n.nullifier as Hex, faceValue: n.faceValue, discountBps: n.discountBps, dueDate: n.dueDate, minTier: n.minTier, status: "open", title: `${usdt(n.faceValue)} USDT invoice note due ${when(n.dueDate)}` };
         const r = await publishListing(arkivWalletFor(w), rec, n.graceSeconds);
         void refreshArkiv();
-        return { hash: r.txHash as Hex, gasUsed: 0n };
+        return { hash: r.txHash as Hex, gasUsed: 0n, chain: "arkiv" };
       }, "Listed on Arkiv", "Investors can now find it in the marketplace."),
     }, "List on the marketplace"),
     msgBanner(key));

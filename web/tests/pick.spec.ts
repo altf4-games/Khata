@@ -23,3 +23,23 @@ test("credentials that failed verification are never chosen, and nothing is chos
   expect(pickActivatable([bad], [])).toBeUndefined();
   expect(pickActivatable([cred("aa", 100)], [rev("aa")])).toBeUndefined();
 });
+
+test("a revocation by a different attester does not hide a credential (revocations are scoped by signer on-chain)", () => {
+  const other = { ...rev("aa"), rec: { ...rev("aa").rec, attester: "0xB" as `0x${string}` } };
+  expect(pickActivatable([cred("aa", 100)], [other])?.rec.credId).toBe("0xaa");
+});
+
+test("a credential Whitechain has marked superseded is never offered, since registering it would revert", () => {
+  const sup = new Set(["0xa:0xbb"]);
+  expect(pickActivatable([cred("aa", 100), cred("bb", 300)], [], { superseded: sup })?.rec.credId).toBe("0xaa");
+});
+
+test("while a credential is active, only a better one is offered: a higher tier, or the same tier for longer", () => {
+  const current = { tier: 2, validUntil: 200 };
+  const low = { ...cred("lo", 999), rec: { ...cred("lo", 999).rec, tier: 1 } };
+  expect(pickActivatable([low], [], { current })).toBeUndefined(); // would downgrade the wallet
+  expect(pickActivatable([cred("sh", 150)], [], { current })).toBeUndefined(); // same tier, shorter
+  expect(pickActivatable([cred("lg", 300)], [], { current })?.rec.credId).toBe("0xlg");
+  const high = { ...cred("hi", 150), rec: { ...cred("hi", 150).rec, tier: 3 } };
+  expect(pickActivatable([high, cred("lg", 300)], [], { current })?.rec.credId).toBe("0xhi"); // the higher tier first
+});

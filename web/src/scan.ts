@@ -60,7 +60,7 @@ export interface CameraHooks {
 }
 
 /** Starts the camera in `video` and scans every frame until a QR is found. */
-export async function startCamera(video: HTMLVideoElement, hooks: CameraHooks): Promise<CameraScan> {
+export async function startCamera(video: HTMLVideoElement, hooks: CameraHooks): Promise<CameraScan | undefined> {
   let stopped = false;
   let stream: MediaStream | undefined;
   try {
@@ -68,7 +68,7 @@ export async function startCamera(video: HTMLVideoElement, hooks: CameraHooks): 
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
   } catch (e) {
     hooks.onError(e as Error);
-    return { stop() {} };
+    return undefined; // nothing is running, so the caller must not look as if it is
   }
   video.srcObject = stream;
   video.setAttribute("playsinline", "true");

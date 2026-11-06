@@ -61,3 +61,27 @@ test("a QR that is too small or blurred to read tells the visitor what to do, in
   await expect(page.getByRole("status").filter({ hasText: /Still looking.*closer/ })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("status").filter({ hasText: /640 px wide/ })).toBeVisible(); // and why: this camera is low resolution
 });
+
+test("a denied camera says so and does not look like it is running", async ({ page }) => {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => { throw new DOMException("denied", "NotAllowedError"); };
+  });
+  await page.goto("/?reads=direct#app");
+  await page.getByRole("button", { name: "Scan with camera" }).click();
+  await expect(page.getByText(/Camera permission was denied/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan with camera" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop camera" })).toHaveCount(0);
+});
+
+test("leaving the app switches the camera off", async ({ page }) => {
+  await fakeCamera(page, { w: 1280, h: 720, qr: 40 }); // too small to be read, so it keeps scanning
+  await page.addInitScript(() => {
+    const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    (window as any).__tracks = [];
+    navigator.mediaDevices.getUserMedia = async (c) => { const s = await real(c); (window as any).__tracks.push(...s.getTracks()); return s; };
+  });
+  await scan(page);
+  await expect(page.getByRole("button", { name: "Stop camera" })).toBeVisible();
+  await page.evaluate(() => { location.hash = ""; });
+  await expect.poll(() => page.evaluate(() => (window as any).__tracks.map((t: MediaStreamTrack) => t.readyState))).toEqual(["ended"]);
+});

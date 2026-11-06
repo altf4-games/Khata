@@ -157,7 +157,9 @@ export async function verifyCredential(
   if (signer.toLowerCase() !== c.attester.toLowerCase()) return { ok: false, reason: "The signature was not made by the attester named in the entity." };
   if (c.owner.toLowerCase() !== c.attester.toLowerCase()) return { ok: false, reason: "The entity was written by someone other than the attester." };
   if (c.validUntil <= ctx.now) return { ok: false, reason: "The credential has expired." };
-  if (!(await ctx.isAttester(signer))) return { ok: false, reason: "The signer is not an attester Whitechain accepts." };
+  let accepted: boolean;
+  try { accepted = await ctx.isAttester(signer); } catch { return { ok: false, reason: "The chain could not confirm this attester. Try again shortly." }; }
+  if (!accepted) return { ok: false, reason: "The signer is not an attester Whitechain accepts." };
   return { ok: true };
 }
 
@@ -287,12 +289,22 @@ export async function extendListing(w: ArkivWallet, entityKey: Hex, seconds: num
  * The credential to offer an investor for activation: the longest-lived one that verified and that no verified
  * revocation names. Registering a revoked credential on Whitechain would only revert.
  */
+/**
+ * The credential to offer for activation: verified, not revoked by its own attester (revocations are scoped by signer on
+ * Whitechain), not superseded on Whitechain (registering it would revert), the highest tier, then the longest-lived. While a
+ * credential is active, only a better one is offered, so activating never downgrades a wallet.
+ * `superseded` holds "attester:credId" in lower case.
+ */
 export function pickActivatable<C extends { rec: CredentialRecord; ok: boolean }>(
   credentials: C[],
   revocations: { rec: RevocationRecord; ok: boolean }[],
+  opts: { superseded?: Set<string>; current?: { tier: number; validUntil: number } } = {},
 ): C | undefined {
-  const revoked = new Set(revocations.filter((r) => r.ok).map((r) => r.rec.credId.toLowerCase()));
+  const key = (attester: string, credId: string) => `${attester.toLowerCase()}:${credId.toLowerCase()}`;
+  const revoked = new Set(revocations.filter((r) => r.ok).map((r) => key(r.rec.attester, r.rec.credId)));
+  const cur = opts.current;
   return credentials
-    .filter((c) => c.ok && !revoked.has(c.rec.credId.toLowerCase()))
-    .sort((a, b) => b.rec.validUntil - a.rec.validUntil)[0];
+    .filter((c) => c.ok && !revoked.has(key(c.rec.attester, c.rec.credId)) && !opts.superseded?.has(key(c.rec.attester, c.rec.credId)))
+    .filter((c) => !cur || c.rec.tier > cur.tier || (c.rec.tier === cur.tier && c.rec.validUntil > cur.validUntil))
+    .sort((a, b) => b.rec.tier - a.rec.tier || b.rec.validUntil - a.rec.validUntil)[0];
 }
