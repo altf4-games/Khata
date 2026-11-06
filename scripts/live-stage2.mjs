@@ -104,7 +104,7 @@ async function signCredential(subject, validUntil, tier, credId) {
 async function registerCredential(label, role, validUntil, credId) {
   const subject = W[role].account.address;
   const { message, signature } = await signCredential(subject, validUntil, 2, credId);
-  const { hash } = await sendOk(`register credential ${label}`, "SUPPLIER", A.attesters.address, A.attesters.abi, "register", [message, signature]);
+  const { hash } = await sendOk(`register credential ${label}`, role, A.attesters.address, A.attesters.abi, "register", [message, signature]);
   return hash;
 }
 const eligibility = (addr) => publicClient.readContract({ ...A.attesters, functionName: "eligibility", args: [addr] });

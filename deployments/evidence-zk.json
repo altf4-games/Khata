@@ -1,43 +1,43 @@
 {
   "chainId": 1874,
-  "KhataRegistry": "0x32a50e36D6a11742A86Ca5bA0c96e330F67F2f34",
-  "HonkVerifier": "0xe950C0ae77B4eA346a52224fd6FF321458f226C6",
-  "nullifier": "0x392c03cd0f7ccf7ad8b609e21f42053eef671cc21759b74734e5fdb793d2849a",
+  "KhataRegistry": "0xe354DA73f8d5E3dddB2DE1fC5377Ca82c29a5764",
+  "HonkVerifier": "0x74d6E6D87a75f23cA2cfec0544e597583D4EBA13",
+  "nullifier": "0x1f46261a134dc1be02e76c3cc9086322a80d3ab348bfc26411b82c778e5ece5b",
   "generatedBy": "npm run live:zk",
   "entries": [
     {
       "label": "another wallet replays the proof (refused)",
-      "hash": "0xba9c550245bd1b4b4ae806e4f294abca2bdeb646d8a37b780f85703215b7087a",
+      "hash": "0x3d2b3c877a20a9af6d7a97173f0e65cf0a9ab495f1c6c01742e118b4c7645535",
       "status": "reverted"
     },
     {
       "label": "proof with a larger value claimed (refused)",
-      "hash": "0xf57f09d649aa178929c3e6d17ce8ebcc98c516b12fd86b9ea6c4336c27e6ca0c",
+      "hash": "0x017f7ba8381d6849a4ee09849ffdddfe631300dbc6701f3f96fb8cb1432ded3d",
       "status": "reverted"
     },
     {
       "label": "a proof under a modulus that is no registered key (refused)",
-      "hash": "0x19d0c25619efe5feecaee6ebaaa023683568573da9ecdd72cde1d42760cad98f",
+      "hash": "0xe624b12628f2cfaaafc592c2ba57ff227954b077331a174ac409e4c7d1302379",
       "status": "reverted"
     },
     {
       "label": "bind by proof",
-      "hash": "0x2ea532a43efc7b622b7ddc1a8cdd3d7a524c0474d0239a8ffb38f2d4eee86a2c",
+      "hash": "0xc041707d00e8f2064de3cee4cb86a94285bd0cb2773a8d228307691e1178845d",
       "status": "success"
     },
     {
       "label": "the same proof submitted again (refused)",
-      "hash": "0x75d9813d5746c706aad1b3daddd7a0c4b65427fdb027b39f2b23f90447beccdd",
+      "hash": "0xd6bf71259598bf61fcc5a2f5dd1c0297c1e3e50af1d6c583876f87966543ceca",
       "status": "reverted"
     },
     {
       "label": "plain bind of the same invoice after the proof (refused)",
-      "hash": "0x150200a31e9ba846960369791d104a2f06ed71c4284f169c3734cb06aafc349c",
+      "hash": "0x825850de187c26d16dbd5d50ce5a6a59b32b3f3114175856b60e37fc072fbca2",
       "status": "reverted"
     },
     {
       "label": "create note from the proof-bound invoice",
-      "hash": "0xf1b0e7f9bf67bb2a56e932fb85dd861ea000be85bbf2f5332c7acf092d813680",
+      "hash": "0xb8d43e73d7a9b4f5a17c2c1770e49cac4f4caac181e1c16faa4057a9a697e89b",
       "status": "success"
     }
   ]

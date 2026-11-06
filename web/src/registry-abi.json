@@ -652,6 +652,25 @@
   "anonymous": false
  },
  {
+  "type": "event",
+  "name": "ZkVerifierSet",
+  "inputs": [
+   {
+    "name": "previous",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "verifier",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   }
+  ],
+  "anonymous": false
+ },
+ {
   "type": "error",
   "name": "BadProofInputs",
   "inputs": []
@@ -754,6 +773,11 @@
  {
   "type": "error",
   "name": "MissingKid",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "ModulusAlreadyRegistered",
   "inputs": []
  },
  {

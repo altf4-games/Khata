@@ -751,6 +751,11 @@
  },
  {
   "type": "error",
+  "name": "ReplacementNeedsSubjectOrAttester",
+  "inputs": []
+ },
+ {
+  "type": "error",
   "name": "StringTooLong",
   "inputs": [
    {

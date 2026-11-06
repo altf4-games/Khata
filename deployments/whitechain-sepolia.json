@@ -17,16 +17,16 @@
     "coolOffSeconds": 60,
     "microUsdtPerPaise": 1,
     "note": "Live demo uses a 60 s cool-off so the lifecycle can be shown in minutes. Unit tests cover 24 h.",
-    "AttesterRegistry": "0x9de708fBc53d7305567532DF172A6a7935A6574F",
+    "AttesterRegistry": "0x5faD73a64C1822266A646aD3957449d8BaC8491c",
     "deployTxs": {
-      "AttesterRegistry": "0xc33ce816ec94ca673d2ea0bb34eec1e63dd069986b238fb292c8b7acaf1ddf25",
-      "KhataRegistry": "0x5ef88da281faa29767a7ff6f84c64ab6416fa1d6d62b75fce327de50a5bb01f2",
-      "KhataFactory": "0xa3e3322de204e7bd4db24dbef4f468cce5db3ac1e54ba1cf9eefbcc72eb9637d",
-      "HonkVerifier": "0x189b69e9b408d3ec9b8810b026375ed6bb014d187ec821d04d161976be9eddd4"
+      "AttesterRegistry": "0x4b96a4b95d25dfd2351615bc08d69554c6fbf27e59354acd0025cb82723d01d1",
+      "KhataRegistry": "0x17c203875fa2c467bc08a0bdafe515bb46309fb376436304555c8b94270de077",
+      "KhataFactory": "0x13d1398e381f17fd9b82c8ae2d7f092f62b67e91c5c6f11458f63d3192a8f88e",
+      "HonkVerifier": "0x781dd2fff3ff40a7eefdaf1b3848a78c776c4a6f748f6f83af9b41914a7504b6"
     },
-    "KhataRegistry": "0x32a50e36D6a11742A86Ca5bA0c96e330F67F2f34",
-    "KhataFactory": "0x4cCd770d692d3d72c5B7814bec0A70c17B225921",
-    "HonkVerifier": "0xe950C0ae77B4eA346a52224fd6FF321458f226C6"
+    "KhataRegistry": "0xe354DA73f8d5E3dddB2DE1fC5377Ca82c29a5764",
+    "KhataFactory": "0x245fD4EEEa1871aC8441829B148a7b7b3A32C82B",
+    "HonkVerifier": "0x74d6E6D87a75f23cA2cfec0544e597583D4EBA13"
   },
   "superseded_stage2": [
     {
@@ -38,6 +38,12 @@
       "AttesterRegistry": "0x398f09E88Ff64a5D766cf8D803E3b7F3773eb027",
       "KhataRegistry": "0xE25Db4Af7f75fb5Aa7199690f9e2FFF6E9A29E03",
       "KhataFactory": "0x446885c6Fa8A9697dDE75db6A3Df28fF893f0Ef9"
+    },
+    {
+      "AttesterRegistry": "0x9de708fBc53d7305567532DF172A6a7935A6574F",
+      "KhataRegistry": "0x32a50e36D6a11742A86Ca5bA0c96e330F67F2f34",
+      "KhataFactory": "0x4cCd770d692d3d72c5B7814bec0A70c17B225921",
+      "HonkVerifier": "0xe950C0ae77B4eA346a52224fd6FF321458f226C6"
     }
   ]
 }
