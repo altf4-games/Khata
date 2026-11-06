@@ -1,7 +1,11 @@
-// Generates the landing-page art as plain SVG files: a Mumbai skyline with a local train, and a marigold garland with lanterns.
-// Original work, drawn from simple shapes by this script. No third-party artwork was used or traced.
-// Run: node scripts/gen-art.mjs   (writes web/src/skyline.svg and web/src/garland.svg)
-import { writeFileSync } from "node:fs";
+// Generates the landing-page illustrations as plain SVG, drawn in an ink-and-gouache style: wobbly ink outlines, hatched shading,
+// stone courses and a paper grain. Original work built from simple shapes by this script; no third-party artwork was used or traced.
+// Run: node scripts/gen-art.mjs   (writes web/src/art/*.svg)
+import { mkdirSync, writeFileSync } from "node:fs";
+
+const OUT = new URL("../web/src/art/", import.meta.url);
+mkdirSync(OUT, { recursive: true });
+const save = (name, svg) => writeFileSync(new URL(name, OUT), svg);
 
 function rng(seed) {
   return () => {
@@ -11,126 +15,290 @@ function rng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const r = rng(11);
+const r = rng(23);
 const pick = (a) => a[Math.floor(r() * a.length)];
-const W = 1200, H = 400, GROUND = 372;
+const f = (n) => Number(n.toFixed(1));
 
-const C = { far: "#d8cce6", far2: "#c9b9d9", ochre: "#d28b3c", clay: "#b5472f", teal: "#2a8c82", tealDark: "#1d6a63", indigo: "#2d2a63", indigoDark: "#1e1c47", gold: "#f2b01e", magenta: "#b83d6e", cream: "#f6e7c1", red: "#b3261e", rail: "#3b3350" };
+const C = {
+  ink: "#3b2a3d", stone: "#d6954d", stoneLt: "#e6b06a", clay: "#b6532f", clayDk: "#8e3b25", olive: "#8a9246", oliveDk: "#5f6a34",
+  teal: "#3a8a82", tealDk: "#27625d", indigo: "#35346b", indigoDk: "#24234f", cream: "#f5e6c0", creamDk: "#e6d09c", gold: "#f2b01e",
+  magenta: "#b83d6e", red: "#b3261e", lav: "#d3c8e2", lavDk: "#bcaed3", water: "#5fa6a0", sand: "#e9c98d",
+};
 
+const defs = `<defs>
+<filter id="wob" x="-2%" y="-2%" width="104%" height="104%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="5" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.2"/></filter>
+<filter id="paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="9" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .23  0 0 0 0 .16  0 0 0 0 .24  0 0 0 -2.2 1.25" result="spec"/><feComposite in="spec" in2="SourceAlpha" operator="in" result="s2"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="s2"/></feMerge></filter>
+<filter id="paperSoft" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="9" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .5  0 0 0 0 .42  0 0 0 0 .3  0 0 0 -3.4 1.35" result="spec"/><feComposite in="spec" in2="SourceAlpha" operator="in" result="s2"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="s2"/></feMerge></filter>
+<pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><line x1="0" y1="0" x2="0" y2="7" stroke="${C.ink}" stroke-width="1.3" opacity=".42"/></pattern>
+<pattern id="hatch2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-32)"><line x1="0" y1="0" x2="0" y2="5" stroke="${C.ink}" stroke-width="1" opacity=".3"/></pattern>
+</defs>`;
+
+const ST = `stroke="${C.ink}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"`;
 let s = "";
 const add = (x) => (s += x + "\n");
 
-// far skyline: pale towers
-add(`<g fill="${C.far}">`);
-for (let x = -10; x < W; x += 0) { const w = 24 + r() * 40, h = 70 + r() * 130; add(`<rect x="${x.toFixed(0)}" y="${GROUND - h}" width="${w.toFixed(0)}" height="${h}"/>`); x += w + 4 + r() * 10; }
-add(`</g>`);
-add(`<g fill="${C.far2}">`);
-for (let x = 10; x < W; x += 0) { const w = 18 + r() * 30, h = 40 + r() * 90; add(`<rect x="${x.toFixed(0)}" y="${GROUND - h}" width="${w.toFixed(0)}" height="${h}"/>`); x += w + 10 + r() * 24; }
-add(`</g>`);
-
-// clock tower (left)
-add(`<g>
-<rect x="250" y="150" width="56" height="${GROUND - 150}" fill="${C.ochre}"/>
-<rect x="244" y="146" width="68" height="10" fill="${C.clay}"/>
-<rect x="256" y="104" width="44" height="44" fill="${C.ochre}"/>
-<circle cx="278" cy="126" r="14" fill="${C.cream}" stroke="${C.indigoDark}" stroke-width="3"/>
-<path d="M278 126v-9M278 126l7 3" stroke="${C.indigoDark}" stroke-width="2.5" stroke-linecap="round"/>
-<path d="M254 104 l24 -44 l24 44z" fill="${C.teal}"/>
-<circle cx="278" cy="56" r="4" fill="${C.gold}"/>
-<g fill="${C.indigoDark}"><rect x="262" y="176" width="10" height="26" rx="5"/><rect x="284" y="176" width="10" height="26" rx="5"/><rect x="262" y="230" width="10" height="26" rx="5"/><rect x="284" y="230" width="10" height="26" rx="5"/></g>
-</g>`);
-
-// arched gateway (centre): a basalt gateway with a great arch, domes and lit windows
-add(`<g>
-<rect x="470" y="210" width="260" height="${GROUND - 210}" fill="${C.ochre}"/>
-<rect x="470" y="204" width="260" height="10" fill="${C.clay}"/>
-<rect x="500" y="170" width="50" height="40" fill="${C.ochre}"/><rect x="650" y="170" width="50" height="40" fill="${C.ochre}"/>
-<path d="M496 170 q29 -46 58 0z" fill="${C.teal}"/><path d="M646 170 q29 -46 58 0z" fill="${C.teal}"/>
-<path d="M600 130 m-36 74 a36 36 0 0 1 72 0z" fill="${C.teal}"/>
-<rect x="592" y="96" width="16" height="30" fill="${C.tealDark}"/><circle cx="600" cy="92" r="6" fill="${C.gold}"/>
-<path d="M538 ${GROUND} V292 a62 62 0 0 1 124 0 V${GROUND}z" fill="${C.indigoDark}"/>
-<path d="M552 ${GROUND} V294 a48 48 0 0 1 96 0 V${GROUND}z" fill="${C.indigo}"/>
-<g fill="${C.gold}"><circle cx="600" cy="330" r="5"/><circle cx="578" cy="344" r="3"/><circle cx="622" cy="344" r="3"/></g>
-<g fill="${C.clay}"><rect x="486" y="240" width="22" height="34" rx="11"/><rect x="692" y="240" width="22" height="34" rx="11"/><rect x="486" y="300" width="22" height="34" rx="11"/><rect x="692" y="300" width="22" height="34" rx="11"/></g>
-<g fill="${C.gold}"><rect x="491" y="248" width="12" height="20" rx="6"/><rect x="697" y="248" width="12" height="20" rx="6"/></g>
-</g>`);
-
-// sea-link style cable tower (right of centre)
-add(`<g>
-<path d="M856 ${GROUND} V120 L874 ${GROUND}z" fill="${C.clay}"/><path d="M892 ${GROUND} V120 L874 ${GROUND}z" fill="${C.magenta}"/>
-<path d="M874 120 L874 ${GROUND}" stroke="${C.indigoDark}" stroke-width="2"/>
-<g stroke="${C.magenta}" stroke-width="2" fill="none"><path d="M874 130 L760 ${GROUND - 40}"/><path d="M874 150 L790 ${GROUND - 30}"/><path d="M874 170 L820 ${GROUND - 24}"/><path d="M874 130 L1010 ${GROUND - 30}"/><path d="M874 150 L980 ${GROUND - 24}"/><path d="M874 170 L940 ${GROUND - 20}"/></g>
-<rect x="740" y="${GROUND - 38}" width="300" height="7" fill="${C.indigoDark}"/>
-</g>`);
-
-// domed building with minarets (right)
-add(`<g>
-<rect x="1040" y="236" width="130" height="${GROUND - 236}" fill="${C.cream}"/>
-<path d="M1050 236 a55 55 0 0 1 110 0z" fill="${C.magenta}"/>
-<circle cx="1105" cy="176" r="6" fill="${C.gold}"/>
-<rect x="1020" y="200" width="16" height="${GROUND - 200}" fill="${C.cream}"/><path d="M1018 200 q10 -26 20 0z" fill="${C.teal}"/>
-<rect x="1174" y="200" width="16" height="${GROUND - 200}" fill="${C.cream}"/><path d="M1172 200 q10 -26 20 0z" fill="${C.teal}"/>
-<g fill="${C.indigo}"><path d="M1062 ${GROUND} V300 a14 14 0 0 1 28 0 V${GROUND}z"/><path d="M1118 ${GROUND} V300 a14 14 0 0 1 28 0 V${GROUND}z"/></g>
-</g>`);
-
-// near buildings with lit windows, filling gaps
-const gaps = [[0, 230], [316, 466], [740, 850], [900, 1016]];
-for (const [a, b] of gaps) {
-  let x = a;
-  while (x < b - 30) {
-    const w = Math.min(34 + r() * 40, b - x), h = 90 + r() * 120, y = GROUND - h;
-    add(`<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" fill="${pick([C.indigo, C.indigoDark, C.tealDark])}"/>`);
-    for (let wy = y + 12; wy < GROUND - 16; wy += 22) for (let wx = x + 8; wx < x + w - 10; wx += 16) if (r() > 0.45) add(`<rect x="${wx.toFixed(0)}" y="${wy.toFixed(0)}" width="7" height="11" rx="1.5" fill="${C.gold}" opacity="${(0.55 + r() * 0.45).toFixed(2)}"/>`);
-    x += w + 6;
+// ---------- building blocks ----------
+function block(x, y, w, h, fill, o = {}) {
+  add(`<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${fill}" ${ST}/>`);
+  const step = o.courses ?? 0;
+  if (step) for (let yy = y + step; yy < y + h - 2; yy += step) add(`<path d="M${f(x + 2)} ${f(yy + r() * 1.4)}H${f(x + w - 2)}" stroke="${C.ink}" stroke-width="1" opacity=".2" fill="none"/>`);
+  if (o.bricks) for (let i = 0; i < o.bricks; i++) { const bx = x + 4 + r() * (w - 8), by = y + 4 + r() * (h - 8); add(`<path d="M${f(bx)} ${f(by)}h${f(5 + r() * 5)}" stroke="${C.ink}" stroke-width="1.2" opacity=".28"/>`); }
+  if (o.shade !== false) add(`<rect x="${f(x + w * 0.74)}" y="${f(y + 1)}" width="${f(w * 0.26 - 1)}" height="${f(h - 2)}" fill="url(#hatch)"/>`);
+  if (o.lightEdge) add(`<path d="M${f(x + 3)} ${f(y + 3)}V${f(y + h - 3)}" stroke="#fff" stroke-width="2" opacity=".28"/>`);
+}
+function arch(cx, base, w, h, fill = C.indigoDk, o = {}) {
+  const x0 = cx - w / 2, rr = w / 2;
+  add(`<path d="M${f(x0)} ${f(base)}V${f(base - h + rr)}a${f(rr)} ${f(rr)} 0 0 1 ${f(w)} 0V${f(base)}z" fill="${fill}" ${ST}/>`);
+  if (o.rim) add(`<path d="M${f(x0 - 5)} ${f(base)}V${f(base - h + rr)}a${f(rr + 5)} ${f(rr + 5)} 0 0 1 ${f(w + 10)} 0V${f(base)}" fill="none" stroke="${C.ink}" stroke-width="2" opacity=".7"/>`);
+  if (o.lit) add(`<path d="M${f(cx - rr * 0.45)} ${f(base - 6)}V${f(base - h * 0.45)}a${f(rr * 0.45)} ${f(rr * 0.45)} 0 0 1 ${f(rr * 0.9)} 0V${f(base - 6)}z" fill="${C.gold}" opacity=".85"/>`);
+  if (o.keystone) add(`<path d="M${f(cx - 4)} ${f(base - h - 3)}h8l2 10h-12z" fill="${C.stoneLt}" ${ST}/>`);
+}
+function win(x, y, w, h, lit = r() > 0.5) {
+  add(`<path d="M${f(x)} ${f(y + h)}V${f(y + w / 2)}a${f(w / 2)} ${f(w / 2)} 0 0 1 ${f(w)} 0V${f(y + h)}z" fill="${lit ? C.gold : C.indigoDk}" stroke="${C.ink}" stroke-width="1.6" ${lit ? 'opacity=".95"' : ""}/>`);
+  add(`<path d="M${f(x + w / 2)} ${f(y + 2)}V${f(y + h)}M${f(x)} ${f(y + h * 0.55)}H${f(x + w)}" stroke="${C.ink}" stroke-width="1" opacity=".55"/>`);
+}
+function dome(cx, base, rr, fill, o = {}) {
+  const h = rr * (o.tall ?? 0.9);
+  add(`<path d="M${f(cx - rr)} ${f(base)}C${f(cx - rr)} ${f(base - h * 1.25)} ${f(cx - rr * 0.35)} ${f(base - h * 1.5)} ${f(cx)} ${f(base - h * 1.7)}C${f(cx + rr * 0.35)} ${f(base - h * 1.5)} ${f(cx + rr)} ${f(base - h * 1.25)} ${f(cx + rr)} ${f(base)}z" fill="${fill}" ${ST}/>`);
+  for (const k of [-0.5, 0, 0.5]) add(`<path d="M${f(cx + k * rr)} ${f(base)}C${f(cx + k * rr * 1.1)} ${f(base - h * 0.9)} ${f(cx + k * rr * 0.5)} ${f(base - h * 1.4)} ${f(cx)} ${f(base - h * 1.68)}" fill="none" stroke="${C.ink}" stroke-width="1.2" opacity=".45"/>`);
+  add(`<rect x="${f(cx + rr * 0.35)}" y="${f(base - h * 1.4)}" width="${f(rr * 0.65)}" height="${f(h * 1.4)}" fill="url(#hatch)" opacity=".8" clip-path="none"/>`);
+  add(`<path d="M${f(cx)} ${f(base - h * 1.7)}v${f(-rr * 0.5)}" stroke="${C.ink}" stroke-width="2.4"/><circle cx="${f(cx)}" cy="${f(base - h * 1.7 - rr * 0.55)}" r="${f(Math.max(3, rr * 0.12))}" fill="${C.gold}" ${ST}/>`);
+}
+function palm(x, base, h, lean = 0) {
+  const tx = x + lean, ty = base - h;
+  add(`<path d="M${f(x - 5)} ${f(base)}Q${f(x + lean * 0.2)} ${f(base - h * 0.5)} ${f(tx - 3)} ${f(ty)}L${f(tx + 3)} ${f(ty)}Q${f(x + lean * 0.2 + 8)} ${f(base - h * 0.5)} ${f(x + 5)} ${f(base)}z" fill="${C.clayDk}" ${ST}/>`);
+  for (let i = 1; i < 9; i++) { const yy = base - (h * i) / 9, xx = x + lean * (i / 9) * (i / 9) * 1.2; add(`<path d="M${f(xx - 4)} ${f(yy)}l8 -2" stroke="${C.ink}" stroke-width="1" opacity=".5"/>`); }
+  const fr = [[-62, -18], [-48, -42], [-22, -58], [0, -62], [24, -56], [50, -40], [64, -14]];
+  for (const [dx, dy] of fr) {
+    const ex = tx + dx, ey = ty + dy + 14;
+    add(`<path d="M${f(tx)} ${f(ty)}Q${f(tx + dx * 0.5)} ${f(ty + dy - 14)} ${f(ex)} ${f(ey)}Q${f(tx + dx * 0.55)} ${f(ty + dy * 0.2 + 4)} ${f(tx)} ${f(ty + 5)}z" fill="${pick([C.olive, C.oliveDk, C.teal])}" ${ST}/>`);
+    add(`<path d="M${f(tx)} ${f(ty + 2)}Q${f(tx + dx * 0.5)} ${f(ty + dy * 0.6)} ${f(ex - dx * 0.1)} ${f(ey - 2)}" stroke="${C.ink}" stroke-width="1" opacity=".5" fill="none"/>`);
   }
+  add(`<circle cx="${f(tx - 4)}" cy="${f(ty + 8)}" r="4.5" fill="${C.clay}" ${ST}/><circle cx="${f(tx + 5)}" cy="${f(ty + 9)}" r="4.5" fill="${C.clay}" ${ST}/>`);
+}
+function tree(x, base, h, col = C.olive) {
+  add(`<path d="M${f(x - 4)} ${f(base)}l2 ${f(-h * 0.5)}h4l2 ${f(h * 0.5)}z" fill="${C.clayDk}" ${ST}/>`);
+  const blobs = [[0, -h * 0.72, h * 0.36], [-h * 0.24, -h * 0.55, h * 0.26], [h * 0.24, -h * 0.55, h * 0.27], [-h * 0.1, -h * 0.9, h * 0.24], [h * 0.14, -h * 0.84, h * 0.22]];
+  for (const [dx, dy, rr] of blobs) add(`<circle cx="${f(x + dx)}" cy="${f(base + dy)}" r="${f(rr)}" fill="${col}" ${ST}/>`);
+  for (let i = 0; i < 9; i++) add(`<path d="M${f(x + (r() - 0.5) * h * 0.6)} ${f(base - h * (0.45 + r() * 0.45))}q3 -3 7 0" stroke="${C.ink}" stroke-width="1.1" opacity=".4" fill="none"/>`);
+  add(`<ellipse cx="${f(x + h * 0.2)}" cy="${f(base - h * 0.62)}" rx="${f(h * 0.14)}" ry="${f(h * 0.26)}" fill="url(#hatch2)"/>`);
+}
+function bush(x, base, w, col = C.oliveDk) {
+  add(`<path d="M${f(x - w / 2)} ${f(base)}q${f(-w * 0.1)} ${f(-w * 0.55)} ${f(w * 0.25)} ${f(-w * 0.55)}q${f(w * 0.2)} ${f(-w * 0.35)} ${f(w * 0.5)} ${f(-w * 0.1)}q${f(w * 0.3)} ${f(w * 0.05)} ${f(w * 0.25)} ${f(w * 0.65)}z" fill="${col}" ${ST}/>`);
+  for (let i = 0; i < 4; i++) add(`<circle cx="${f(x - w * 0.3 + r() * w * 0.6)}" cy="${f(base - w * (0.15 + r() * 0.3))}" r="2.4" fill="${pick([C.gold, C.red, C.magenta])}"/>`);
+}
+function lamp(x, base) {
+  add(`<path d="M${f(x)} ${f(base)}V${f(base - 62)}" stroke="${C.ink}" stroke-width="3" fill="none"/><path d="M${f(x - 7)} ${f(base - 62)}h14l-3 -10h-8z" fill="${C.gold}" ${ST}/>`);
 }
 
-// ground, rails and a local train
-add(`<rect x="0" y="${GROUND}" width="${W}" height="${H - GROUND}" fill="${C.indigoDark}"/>`);
-add(`<rect x="0" y="${GROUND + 14}" width="${W}" height="4" fill="${C.rail}"/><rect x="0" y="${GROUND + 24}" width="${W}" height="3" fill="${C.rail}"/>`);
-for (let x = 6; x < W; x += 26) add(`<rect x="${x}" y="${GROUND + 16}" width="10" height="9" fill="${C.rail}"/>`);
-let tx = 120;
-for (let i = 0; i < 4; i++) {
-  add(`<g>
-<rect x="${tx}" y="${GROUND - 42}" width="148" height="46" rx="6" fill="${C.cream}"/>
-<rect x="${tx}" y="${GROUND - 14}" width="148" height="18" fill="${i === 0 ? C.red : C.teal}"/>
-<rect x="${tx}" y="${GROUND - 44}" width="148" height="5" rx="2" fill="${C.indigoDark}"/>
-<g fill="${C.indigo}"><rect x="${tx + 10}" y="${GROUND - 34}" width="22" height="16" rx="2"/><rect x="${tx + 40}" y="${GROUND - 34}" width="22" height="16" rx="2"/><rect x="${tx + 86}" y="${GROUND - 34}" width="22" height="16" rx="2"/><rect x="${tx + 116}" y="${GROUND - 34}" width="22" height="16" rx="2"/></g>
-<g fill="${C.gold}" opacity=".85"><rect x="${tx + 12}" y="${GROUND - 31}" width="8" height="8"/><rect x="${tx + 88}" y="${GROUND - 31}" width="8" height="8"/></g>
-<g fill="${C.indigoDark}"><circle cx="${tx + 30}" cy="${GROUND + 8}" r="6"/><circle cx="${tx + 118}" cy="${GROUND + 8}" r="6"/></g>
-</g>`);
-  tx += 152;
+// ---------- the skyline cluster (1000 x 500) ----------
+const W = 1000, H = 500, G = 440;
+const sky = () => {
+  // far pale towers
+  add(`<g opacity=".95">`);
+  for (let x = -10; x < W; ) { const w = 22 + r() * 36, h = 60 + r() * 150; add(`<rect x="${f(x)}" y="${f(G - h)}" width="${f(w)}" height="${f(h)}" fill="${C.lav}" stroke="${C.lavDk}" stroke-width="2"/>`); for (let yy = G - h + 14; yy < G - 12; yy += 16) for (let xx = x + 6; xx < x + w - 6; xx += 11) if (r() > 0.55) add(`<rect x="${f(xx)}" y="${f(yy)}" width="4" height="7" fill="${C.lavDk}"/>`); x += w + 3 + r() * 8; }
+  add(`</g>`);
+
+  // sea-link bridge, behind the hotel
+  add(`<g>`);
+  add(`<rect x="610" y="${G - 38}" width="400" height="9" fill="${C.indigo}" ${ST}/>`);
+  add(`<path d="M610 ${G - 29}H1010" stroke="${C.ink}" stroke-width="1" opacity=".5"/>`);
+  for (let x = 640; x < 1000; x += 40) add(`<path d="M${x} ${G - 29}v26" stroke="${C.ink}" stroke-width="3"/>`);
+  add(`<path d="M885 ${G - 38}L898 70L911 ${G - 38}" fill="${C.magenta}" ${ST}/><path d="M898 70V${G - 38}" stroke="${C.ink}" stroke-width="2"/><path d="M890 150h16M888 210h20" stroke="${C.ink}" stroke-width="3"/>`);
+  for (let i = 0; i < 8; i++) { add(`<path d="M898 ${96 + i * 15}L${760 - i * 20 + (i % 2) * 6} ${G - 38}" stroke="${C.ink}" stroke-width="1.5" fill="none"/><path d="M898 ${96 + i * 15}L${1010 - (i % 2) * 6} ${G - 38 - 0}" stroke="${C.ink}" stroke-width="1.5" fill="none"/>`); }
+  add(`</g>`);
+
+  // grand hotel (right)
+  add(`<g>`);
+  block(690, 300, 150, G - 300, C.cream, { courses: 16, bricks: 14 });
+  block(676, 278, 36, G - 278, C.cream, { courses: 16 });
+  block(818, 278, 36, G - 278, C.cream, { courses: 16 });
+  dome(694, 278, 20, C.clay); dome(836, 278, 20, C.clay);
+  dome(765, 300, 40, C.clay, { tall: 1.05 });
+  for (let i = 0; i < 6; i++) arch(702 + i * 24, G, 16, 52, C.indigoDk, { lit: i % 3 === 0 });
+  for (let i = 0; i < 6; i++) win(704 + i * 24, 322, 12, 28, i % 2 === 0);
+  for (let i = 0; i < 6; i++) win(704 + i * 24, 362, 12, 28, i % 3 === 1);
+  add(`<path d="M690 300h150" stroke="${C.ink}" stroke-width="3"/>`);
+  add(`</g>`);
+
+  // clock tower (left)
+  add(`<g>`);
+  block(118, 340, 200, G - 340, C.stone, { courses: 18, bricks: 20 });
+  for (let i = 0; i < 7; i++) arch(140 + i * 26, G, 18, 56, C.indigoDk, { lit: i === 3 });
+  block(190, 130, 56, 212, C.stone, { courses: 14, bricks: 22, lightEdge: true });
+  block(184, 126, 68, 10, C.clay, { shade: false });
+  block(194, 80, 48, 50, C.stoneLt, { courses: 12 });
+  add(`<circle cx="218" cy="105" r="16" fill="${C.cream}" ${ST}/><circle cx="218" cy="105" r="12" fill="none" stroke="${C.ink}" stroke-width="1" opacity=".5"/><path d="M218 105v-10M218 105l8 4" stroke="${C.ink}" stroke-width="2.4"/>`);
+  for (let i = 0; i < 4; i++) { win(198 + (i % 2) * 24, 148 + Math.floor(i / 2) * 50, 12, 28, i === 1); }
+  add(`<path d="M190 80L218 18L246 80z" fill="${C.teal}" ${ST}/><path d="M218 18L233 80L246 80z" fill="url(#hatch)"/><path d="M218 18v-12" stroke="${C.ink}" stroke-width="2.4"/><circle cx="218" cy="5" r="4.5" fill="${C.gold}" ${ST}/>`);
+  for (const x of [120, 292]) { block(x - 8, 300, 26, 42, C.stone, { courses: 14 }); dome(x + 5, 300, 13, C.teal); }
+  add(`</g>`);
+
+  // the great gateway (centre)
+  add(`<g>`);
+  block(345, 255, 310, G - 255, C.stone, { courses: 17, bricks: 40, lightEdge: true });
+  block(335, 244, 330, 14, C.clay, { shade: false });
+  for (let x = 345; x < 650; x += 12) add(`<path d="M${x} 244v-6h8v6" fill="${C.clay}" ${ST}/>`);
+  // turrets
+  for (const x of [348, 602]) { block(x, 196, 50, 60, C.stoneLt, { courses: 13, bricks: 8 }); dome(x + 25, 196, 25, C.teal); for (let i = 0; i < 2; i++) win(x + 11 + i * 20, 214, 12, 26, i === 0); }
+  // central parapet with lattice windows
+  block(410, 214, 180, 32, C.stoneLt, { courses: 11 });
+  for (let i = 0; i < 9; i++) { const wx = 418 + i * 19; add(`<path d="M${wx} 242V226a6 6 0 0 1 12 0V242z" fill="${C.indigoDk}" ${ST}/><path d="M${wx + 6} 222V242M${wx} 234H${wx + 12}" stroke="${C.gold}" stroke-width="1.2" opacity=".8"/>`); }
+  dome(500, 214, 46, C.teal, { tall: 1.1 });
+  add(`<path d="M500 128V92" stroke="${C.ink}" stroke-width="2.4"/><path d="M500 92l30 8l-30 8z" fill="${C.red}" ${ST}/>`);
+  // great arch
+  arch(500, G, 128, 168, C.indigoDk, { rim: true, keystone: true, lit: true });
+  add(`<path d="M460 ${G}V330M540 ${G}V330" stroke="${C.gold}" stroke-width="1" opacity=".4"/>`);
+  for (const cx of [410, 590]) arch(cx, G, 44, 96, C.indigoDk, { rim: true, lit: false });
+  for (const cx of [376, 624]) { win(cx - 6, 292, 12, 30, true); win(cx - 6, 340, 12, 30, false); }
+  add(`</g>`);
+
+  // sea and boat
+  add(`<path d="M600 ${G - 26}Q640 ${G - 32} 700 ${G - 26}T820 ${G - 26}T940 ${G - 26}T1010 ${G - 26}V${G}H600z" fill="${C.water}" ${ST} opacity=".95"/>`);
+  for (let i = 0; i < 9; i++) add(`<path d="M${860 + i * 18} ${G - 14 + (i % 3) * 5}q6 -5 12 0" stroke="#fff" stroke-width="1.6" opacity=".65" fill="none"/>`);
+  add(`<g><path d="M770 ${G - 14}h60l-10 14h-42z" fill="${C.clay}" ${ST}/><path d="M800 ${G - 14}V${G - 66}" stroke="${C.ink}" stroke-width="2.4"/><path d="M800 ${G - 64}Q826 ${G - 40} 826 ${G - 18}H802z" fill="${C.cream}" ${ST}/><path d="M804 ${G - 56}Q818 ${G - 38} 819 ${G - 24}" stroke="${C.ink}" stroke-width="1" opacity=".4" fill="none"/></g>`);
+
+  // trees and plants in front
+  palm(88, G + 4, 215, -26); palm(318, G + 4, 175, 22); palm(676, G + 4, 190, -18); palm(980, G + 4, 160, 12);
+  tree(60, G + 8, 70, C.oliveDk); tree(344, G + 10, 56, C.olive);
+  bush(150, G + 10, 54); bush(268, G + 10, 46, C.olive); bush(450, G + 12, 60); bush(560, G + 12, 56, C.olive); bush(730, G + 12, 50); bush(900, G + 12, 56, C.olive);
+  lamp(330, G + 6); lamp(670, G + 6);
+};
+
+// ground and hills (drawn in front of everything else)
+const ground = () => {
+  // the ground runs far past both edges of the drawing so it meets the screen edges at any width; the page clips it
+  const X0 = -1800, X1 = 2800;
+  add(`<path d="M${X0} ${G + 8}Q-600 ${G - 6} -100 ${G + 6}Q140 ${G - 6} 300 ${G + 6}T620 ${G + 4}T1010 ${G + 2}Q1500 ${G - 6} 2000 ${G + 6}T${X1} ${G + 4}V${H + 10}H${X0}z" fill="${C.olive}" ${ST}/>`);
+  add(`<path d="M${X0} ${G + 30}Q-600 ${G + 14} 420 ${G + 28}T1010 ${G + 22}T${X1} ${G + 24}V${H + 10}H${X0}z" fill="${C.oliveDk}" ${ST}/>`);
+  for (let i = 0; i < 700; i++) { const x = X0 + r() * (X1 - X0), y = G + 14 + r() * 40; add(`<path d="M${f(x)} ${f(y)}l2 -7M${f(x + 3)} ${f(y)}l-1 -6" stroke="${C.ink}" stroke-width="1.1" opacity=".38"/>`); }
+  for (let i = 0; i < 260; i++) add(`<circle cx="${f(X0 + r() * (X1 - X0))}" cy="${f(G + 16 + r() * 36)}" r="3" fill="${pick([C.gold, C.gold, C.magenta, C.clay])}" stroke="${C.ink}" stroke-width="1"/>`);
+  for (let x = X0; x < X1; x += 130 + r() * 90) if (x < -60 || x > 1060) bush(x, G + 12, 44 + r() * 26, pick([C.olive, C.oliveDk]));
+};
+
+add(`<g filter="url(#paper)"><g filter="url(#wob)">`);
+sky();
+ground();
+add(`</g></g>`);
+save("skyline.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet" overflow="visible" role="img" aria-label="Ink illustration of a Mumbai waterfront: a clock tower, a great stone gateway, a domed hotel, a cable-stayed sea link, palms and a fishing boat">${defs}\n${s}</svg>\n`);
+
+// ---------- filler tile: far skyline that repeats sideways ----------
+s = "";
+const TW = 600, TH = 300;
+{
+  add(`<g filter="url(#paperSoft)">`);
+  for (let x = 6; x < TW - 40; ) {
+    const w = 24 + r() * 44, h = 50 + r() * 190;
+    if (x + w > TW - 14) break;
+    add(`<rect x="${f(x)}" y="${f(TH - h)}" width="${f(w)}" height="${f(h)}" fill="${pick([C.lav, C.lav, C.lavDk])}" stroke="${C.lavDk}" stroke-width="2"/>`);
+    if (r() > 0.6) add(`<path d="M${f(x)} ${f(TH - h)}l${f(w / 2)} -14l${f(w / 2)} 14z" fill="${C.lavDk}" stroke="${C.lavDk}" stroke-width="2"/>`);
+    for (let yy = TH - h + 12; yy < TH - 10; yy += 15) for (let xx = x + 6; xx < x + w - 6; xx += 10) if (r() > 0.5) add(`<rect x="${f(xx)}" y="${f(yy)}" width="4" height="7" fill="${C.lavDk}"/>`);
+    x += w + 4 + r() * 10;
+  }
+  add(`</g>`);
 }
-add(`<rect x="${tx - 2}" y="${GROUND - 38}" width="10" height="26" fill="${C.cream}"/><circle cx="${tx + 4}" cy="${GROUND - 24}" r="5" fill="${C.gold}"/>`);
+save("filler.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${TW} ${TH}" width="${TW}" height="${TH}" preserveAspectRatio="xMinYMax slice" aria-hidden="true">${defs}\n${s}</svg>\n`);
 
-writeFileSync(new URL("../web/src/skyline.svg", import.meta.url),
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Illustration: a Mumbai skyline at dusk with a clock tower, a great arched gateway, a cable-stayed bridge, a domed hall and a local train">\n${s}</svg>\n`);
+// ---------- local train ----------
+s = "";
+const TRW = 700, TRH = 84;
+{
+  add(`<g filter="url(#paper)"><g filter="url(#wob)">`);
+  for (let i = 0; i < 4; i++) {
+    const x = 6 + i * 172, stripe = i % 2 === 0 ? C.clay : C.teal;
+    add(`<rect x="${x}" y="14" width="166" height="50" rx="8" fill="${C.cream}" ${ST}/>`);
+    add(`<rect x="${x}" y="46" width="166" height="18" fill="${stripe}" ${ST}/>`);
+    add(`<rect x="${x + 2}" y="16" width="162" height="6" rx="3" fill="${C.creamDk}" stroke="${C.ink}" stroke-width="1.2"/>`);
+    for (let w = 0; w < 5; w++) {
+      const wx = x + 12 + w * 30;
+      add(`<rect x="${wx}" y="26" width="22" height="18" rx="3" fill="${C.indigoDk}" ${ST}/>`);
+      if (r() > 0.35) add(`<circle cx="${wx + 6 + r() * 10}" cy="34" r="3.4" fill="${pick([C.gold, C.cream, C.magenta])}"/><path d="M${wx + 4} 44q6 -8 14 0" fill="${pick([C.gold, C.cream, C.magenta])}" opacity=".9"/>`);
+    }
+    add(`<path d="M${x + 80} 16V62" stroke="${C.ink}" stroke-width="1.6"/>`);
+    add(`<rect x="${x + 70}" y="6" width="26" height="8" rx="2" fill="${C.ink}" opacity=".85"/>`);
+    add(`<g fill="${C.ink}"><circle cx="${x + 30}" cy="68" r="8"/><circle cx="${x + 136}" cy="68" r="8"/></g><g fill="${C.creamDk}"><circle cx="${x + 30}" cy="68" r="3"/><circle cx="${x + 136}" cy="68" r="3"/></g>`);
+    add(`<rect x="${x + 166}" y="36" width="6" height="12" fill="${C.ink}"/>`);
+  }
+  add(`<circle cx="${TRW - 8}" cy="40" r="4.4" fill="${C.gold}" ${ST}/>`);
+  add(`</g></g>`);
+}
+save("train.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${TRW} ${TRH}" preserveAspectRatio="xMinYMax meet" aria-hidden="true">${defs}\n${s}</svg>\n`);
 
-// garland with lanterns
-const GW = 1200, GH = 150;
-let g = "";
+// ---------- clouds ----------
+// Overlapping circles clipped to a flat base: each is stroked, then all are filled over the stroke, so only the outer outline remains.
+function cloud(seed, w) {
+  const q = rng(seed);
+  s = "";
+  const n = 6;
+  const circles = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const rr = 18 + Math.sin(t * Math.PI) * 30 * (0.7 + q() * 0.5) + q() * 6;
+    circles.push([f(14 + t * (w - 28)), f(62 - rr * 0.62), f(rr)]);
+  }
+  const id = `cl${seed}`;
+  add(`<clipPath id="${id}"><rect x="-10" y="-80" width="${w + 20}" height="142"/></clipPath>`);
+  add(`<g filter="url(#paperSoft)" clip-path="url(#${id})">`);
+  for (const [cx, cy, rr] of circles) add(`<circle cx="${cx}" cy="${cy}" r="${rr}" fill="#fcf6e6" stroke="#c4b48c" stroke-width="5"/>`);
+  for (const [cx, cy, rr] of circles) add(`<circle cx="${cx}" cy="${cy}" r="${rr}" fill="#fcf6e6"/>`);
+  add(`<path d="M0 62H${w}" stroke="#c4b48c" stroke-width="4"/>`);
+  for (let i = 0; i < 8; i++) { const [cx, cy, rr] = pick(circles); add(`<path d="M${f(cx - rr * 0.5)} ${f(cy + rr * (0.1 + q() * 0.4))}q${f(rr * 0.4)} ${f(-rr * 0.35)} ${f(rr * 0.8)} 0" stroke="#c4b48c" stroke-width="1.8" fill="none" opacity=".85"/>`); }
+  for (let i = 0; i < 5; i++) add(`<path d="M${f(10 + q() * (w - 60))} ${f(52 + q() * 6)}h${f(16 + q() * 22)}" stroke="#c4b48c" stroke-width="1.5" opacity=".6"/>`);
+  add(`</g>`);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -40 ${w + 12} 112" aria-hidden="true">${defs}\n${s}</svg>\n`;
+}
+save("cloud-a.svg", cloud(3, 300));
+save("cloud-b.svg", cloud(8, 240));
+save("cloud-c.svg", cloud(14, 340));
+
+// ---------- sun with rays ----------
+s = "";
+{
+  const cx = 150, cy = 150;
+  add(`<g class="rays">`);
+  for (let i = 0; i < 28; i++) { const a = (i / 28) * Math.PI * 2; add(`<path d="M${f(cx + Math.cos(a) * 78)} ${f(cy + Math.sin(a) * 78)}L${f(cx + Math.cos(a + 0.05) * (i % 2 ? 116 : 134))} ${f(cy + Math.sin(a + 0.05) * (i % 2 ? 116 : 134))}" stroke="#d99a1c" stroke-width="3.2" stroke-linecap="round" opacity=".8"/>`); }
+  add(`</g>`);
+  add(`<g filter="url(#paperSoft)">`);
+  add(`<circle cx="${cx}" cy="${cy}" r="66" fill="#f6c445" stroke="#c98b12" stroke-width="3"/>`);
+  add(`<circle cx="${cx}" cy="${cy}" r="48" fill="none" stroke="#c98b12" stroke-width="1.4" opacity=".55"/>`);
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; add(`<path d="M${f(cx + Math.cos(a) * 20)} ${f(cy + Math.sin(a) * 20)}L${f(cx + Math.cos(a) * 44)} ${f(cy + Math.sin(a) * 44)}" stroke="#c98b12" stroke-width="1.3" opacity=".5"/>`); }
+  add(`</g>`);
+}
+save("sun.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" aria-hidden="true">${defs}\n${s}</svg>\n`);
+
+// ---------- birds ----------
+s = "";
+for (const [x, y, k] of [[10, 30, 1], [54, 12, 0.8], [96, 40, 0.9], [140, 20, 0.7]]) add(`<path class="bird" style="animation-delay:${(-x / 40).toFixed(1)}s" d="M${x} ${y}q${8 * k} ${-10 * k} ${16 * k} 0q${8 * k} ${-10 * k} ${16 * k} 0" fill="none" stroke="${C.ink}" stroke-width="2.4" stroke-linecap="round"/>`);
+save("birds.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 60" aria-hidden="true">${s}</svg>\n`);
+
+// ---------- garland with swaying lanterns ----------
+s = "";
+const GW = 1200, GH = 170;
 const swag = (x0, x1, sag) => {
   const mx = (x0 + x1) / 2;
-  const pt = (t) => { const x = x0 + (x1 - x0) * t; const y = 10 + 4 * sag * t * (1 - t); return [x, y]; };
-  g += `<path d="M${x0} 10 Q${mx} ${10 + sag * 2} ${x1} 10" fill="none" stroke="${C.tealDark}" stroke-width="2.5"/>`;
-  const n = Math.floor((x1 - x0) / 16);
+  const pt = (t) => ({ x: x0 + (x1 - x0) * t, y: 10 + 4 * sag * t * (1 - t) });
+  s += `<path d="M${x0} 10Q${mx} ${10 + sag * 2} ${x1} 10" fill="none" stroke="${C.tealDk}" stroke-width="2.6"/>\n`;
+  const n = Math.floor((x1 - x0) / 15);
   for (let i = 1; i < n; i++) {
-    const [x, y] = pt(i / n);
-    const col = i % 3 === 0 ? C.gold : i % 3 === 1 ? "#e8791b" : "#f6c445";
-    g += `<circle cx="${x.toFixed(1)}" cy="${(y + 5).toFixed(1)}" r="${(6.5 + (i % 2)).toFixed(1)}" fill="${col}"/>`;
-    if (i % 4 === 0) g += `<circle cx="${x.toFixed(1)}" cy="${(y + 5).toFixed(1)}" r="2.4" fill="${C.clay}"/>`;
+    const p = pt(i / n), col = i % 3 === 0 ? C.gold : i % 3 === 1 ? "#e8791b" : "#f6c445";
+    s += `<circle cx="${f(p.x)}" cy="${f(p.y + 5)}" r="${f(7 + (i % 2))}" fill="${col}" stroke="${C.ink}" stroke-width="1.3"/>`;
+    if (i % 4 === 0) s += `<circle cx="${f(p.x)}" cy="${f(p.y + 5)}" r="2.6" fill="${C.clay}"/>`;
+    if (i % 5 === 2) s += `<path d="M${f(p.x)} ${f(p.y + 12)}q-5 8 0 15q5 -7 0 -15" fill="${C.olive}" stroke="${C.ink}" stroke-width="1"/>`;
   }
 };
-swag(-10, 400, 34); swag(400, 800, 34); swag(800, 1210, 34);
-for (const [x, len, col] of [[400, 62, C.red], [800, 62, C.red], [150, 40, C.magenta], [1060, 40, C.magenta], [600, 34, C.teal]]) {
-  const y = 10 + (x === 400 || x === 800 ? 0 : 20);
-  g += `<path d="M${x} ${y}V${y + 14}" stroke="${C.indigoDark}" stroke-width="2"/>
-<rect x="${x - 7}" y="${y + 14}" width="14" height="5" rx="2" fill="${C.gold}"/>
-<path d="M${x - 11} ${y + 19}q-4 ${len / 2} 3 ${len - 8}h16q7 -${len / 2 - 8} 3 -${len - 8}z" fill="${col}"/>
-<path d="M${x} ${y + 19}v${len - 8}" stroke="${C.gold}" stroke-width="1.6" opacity=".6"/>
-<rect x="${x - 8}" y="${y + len + 8}" width="16" height="5" rx="2" fill="${C.gold}"/>
-<path d="M${x} ${y + len + 13}v10" stroke="${C.gold}" stroke-width="2"/><circle cx="${x}" cy="${y + len + 26}" r="3" fill="${C.gold}"/>`;
+// the tile starts and ends at the same height, so copies placed side by side join into one continuous garland
+swag(0, 400, 34); swag(400, 800, 34); swag(800, 1200, 34);
+const swags = s;
+s = "";
+let li = 0;
+for (const [x, len, col, y0] of [[400, 70, C.red, 10], [800, 70, C.red, 10], [150, 46, C.magenta, 30], [1060, 46, C.magenta, 30], [600, 42, C.teal, 30], [270, 38, C.gold, 34], [930, 38, C.gold, 34]]) {
+  s += `<g class="sway" style="transform-origin:${x}px ${y0}px;animation-delay:${(-li++ * 0.9).toFixed(1)}s"><path d="M${x} ${y0}V${y0 + 16}" stroke="${C.ink}" stroke-width="2"/>
+<rect x="${x - 8}" y="${y0 + 16}" width="16" height="6" rx="2" fill="${C.gold}" stroke="${C.ink}" stroke-width="1.4"/>
+<path d="M${x - 13} ${y0 + 22}q-5 ${len / 2} 3 ${len - 8}h20q8 -${len / 2 - 8} 3 -${len - 8}z" fill="${col}" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M${x} ${y0 + 22}v${len - 8}M${x - 7} ${y0 + 24}q-2 ${len / 2 - 4} 2 ${len - 10}M${x + 7} ${y0 + 24}q2 ${len / 2 - 4} -2 ${len - 10}" stroke="${C.gold}" stroke-width="1.3" opacity=".7" fill="none"/>
+<rect x="${x - 9}" y="${y0 + len + 12}" width="18" height="6" rx="2" fill="${C.gold}" stroke="${C.ink}" stroke-width="1.4"/>
+<path d="M${x} ${y0 + len + 18}v12" stroke="${C.gold}" stroke-width="2.2"/><circle cx="${x}" cy="${y0 + len + 33}" r="3.4" fill="${C.gold}" stroke="${C.ink}" stroke-width="1"/></g>\n`;
 }
-writeFileSync(new URL("../web/src/garland.svg", import.meta.url),
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GW} ${GH}" preserveAspectRatio="xMidYMin slice" aria-hidden="true">\n${g}\n</svg>\n`);
-console.log("wrote skyline.svg and garland.svg");
+save("garland.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GW} ${GH}" preserveAspectRatio="xMidYMin meet" aria-hidden="true">${defs}\n<g filter="url(#paper)">${swags}</g>\n${s}</svg>\n`);
+
+console.log("wrote art to web/src/art/");

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 60" aria-hidden="true"><path class="bird" style="animation-delay:-0.3s" d="M10 30q8 -10 16 0q8 -10 16 0" fill="none" stroke="#3b2a3d" stroke-width="2.4" stroke-linecap="round"/>
+<path class="bird" style="animation-delay:-1.4s" d="M54 12q6.4 -8 12.8 0q6.4 -8 12.8 0" fill="none" stroke="#3b2a3d" stroke-width="2.4" stroke-linecap="round"/>
+<path class="bird" style="animation-delay:-2.4s" d="M96 40q7.2 -9 14.4 0q7.2 -9 14.4 0" fill="none" stroke="#3b2a3d" stroke-width="2.4" stroke-linecap="round"/>
+<path class="bird" style="animation-delay:-3.5s" d="M140 20q5.6 -7 11.2 0q5.6 -7 11.2 0" fill="none" stroke="#3b2a3d" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

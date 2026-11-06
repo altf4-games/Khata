@@ -1,6 +1,13 @@
 // The public front page. Its prompt-style box is the real input: it hands the invoice text to the app, which checks it on-chain.
-import skylineSvg from "./skyline.svg?raw";
-import garlandSvg from "./garland.svg?raw";
+import skylineSvg from "./art/skyline.svg?raw";
+import garlandSvg from "./art/garland.svg?raw";
+import trainSvg from "./art/train.svg?raw";
+import sunSvg from "./art/sun.svg?raw";
+import birdsSvg from "./art/birds.svg?raw";
+import cloudA from "./art/cloud-a.svg?raw";
+import cloudB from "./art/cloud-b.svg?raw";
+import cloudC from "./art/cloud-c.svg?raw";
+import fillerUrl from "./art/filler.svg?url";
 import { el } from "./ui";
 
 export const LOGO = `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="4" width="32" height="40" rx="4" fill="#7d1816"/><rect x="10" y="4" width="28" height="40" rx="3" fill="#a3211f"/><rect x="8" y="19" width="32" height="8" fill="#f5b301"/><circle cx="24" cy="23" r="2.2" fill="#a3211f"/><path d="M15 10h18M15 14h18M15 33h18M15 37h12" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"/></svg>`;
@@ -61,7 +68,10 @@ export function landing(h: LandingHandlers): HTMLElement {
   const go = el("button", { class: "btn primary", type: "button", onclick: () => h.open(ta.value.trim() || undefined) }, "Check this invoice");
 
   const hero = el("section", { class: "hero" },
-    svgBox("garland", garlandSvg),
+    // drifting clouds, a bird flock and a turning sun: decoration only, and still when the visitor prefers reduced motion
+    el("div", { class: "clouds", "aria-hidden": "true" },
+      svgBox("cloud a", cloudA), svgBox("cloud b", cloudB), svgBox("cloud c", cloudC), svgBox("cloud d", cloudA), svgBox("flock", birdsSvg)),
+    (() => { const g = el("div", { class: "garland", "aria-hidden": "true" }); const row = el("div", { class: "garland-row" }); for (let i = 0; i < 4; i++) row.append(svgBox("tile", garlandSvg)); g.append(row); return g; })(),
     el("div", { class: "wrap" },
       el("span", { class: "eyebrow" }, "Invoice financing, checked against the government signature"),
       (() => { const t = el("h1", {}); t.innerHTML = `Finance the invoice, not the <em>fraud.</em>`; return t; })(),
@@ -75,7 +85,11 @@ export function landing(h: LandingHandlers): HTMLElement {
         chip(ICON.flag, h.demoBusy() ? "Finding one…" : "Demo invoice (DEMO IRP key)", h.demoInvoice, h.demoBusy()),
         chip(ICON.edit, "Change one byte, watch it fail", h.tamper)),
     ),
-    svgBox("skyline", skylineSvg),
+    el("div", { class: "skyline", role: "img", "aria-label": "Ink illustration of a Mumbai waterfront with a clock tower, a stone gateway, a domed hotel, a sea bridge and a local train passing" },
+      el("div", { class: "sky-fill", style: `background-image:url(${fillerUrl})` }),
+      svgBox("sun", sunSvg),
+      svgBox("sky-cluster", skylineSvg),
+      el("div", { class: "rail" }, svgBox("train", trainSvg))),
   );
 
   const trust = el("div", { class: "trust" }, el("ul", {},

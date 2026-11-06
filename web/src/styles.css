@@ -234,18 +234,22 @@ main a { display: inline-flex; align-items: center; min-height: var(--tap); }
 .land-links a.link { display: none; color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
 @media (min-width: 700px) { .land-links a.link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s3); } }
 .land-links .btn { min-height: 44px; padding: 0 var(--s4); }
-.garland { position: absolute; inset: 0 0 auto 0; height: 120px; overflow: hidden; pointer-events: none; opacity: 0.95; }
-.garland svg { width: 100%; height: 100%; display: block; }
-@media (max-width: 599px) { .garland { height: 96px; } }
+.garland { position: absolute; inset: 0 0 auto 0; height: 128px; overflow: hidden; pointer-events: none; z-index: 1; }
+.garland-row { position: absolute; left: 50%; top: 0; height: 100%; display: flex; transform: translateX(-50%); }
+.garland-row .tile { flex: none; height: 100%; aspect-ratio: 1200 / 170; }
+.garland-row .tile svg { display: block; width: 100%; height: 100%; }
+@media (max-width: 599px) { .garland { height: 104px; } }
+.sway { animation: sway 4.6s ease-in-out infinite alternate; }
+@keyframes sway { from { transform: rotate(-3.5deg); } to { transform: rotate(3.5deg); } }
 
-.hero { position: relative; overflow: hidden; padding-top: 7.5rem; }
-.hero .wrap { display: block; text-align: center; }
+.hero { position: relative; overflow: hidden; isolation: isolate; padding-top: 7.5rem; }
+.hero .wrap { display: block; text-align: center; position: relative; z-index: 3; }
 .eyebrow { display: block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--teal); margin-bottom: var(--s4); }
 .hero h1 { font-size: var(--fs-hero); letter-spacing: -0.035em; max-width: 14ch; margin: 0 auto; }
 .hero h1 em { font-style: normal; color: var(--red); }
 .hero .sub { font-size: var(--fs-lg); color: var(--ink-soft); max-width: 34rem; margin: var(--s4) auto var(--s5); }
 
-.prompt { max-width: 40rem; margin: 0 auto; text-align: left; background: rgba(255, 253, 248, 0.94); border: 2px solid #fff; outline: 1px solid var(--line); border-radius: 28px; padding: var(--s4); box-shadow: 0 20px 50px -24px rgba(23, 20, 58, 0.45); position: relative; z-index: 3; }
+.prompt { max-width: 40rem; margin: 0 auto; text-align: left; background: rgba(255, 253, 248, 0.95); border: 2px solid #fff; outline: 1px solid var(--line); border-radius: 28px; padding: var(--s4); box-shadow: 0 20px 50px -24px rgba(23, 20, 58, 0.45); position: relative; z-index: 3; }
 .prompt textarea { min-height: 5.5rem; border: 0; background: transparent; padding: var(--s2); font: 1.02rem / 1.45 var(--sans); word-break: normal; overflow-wrap: anywhere; resize: none; }
 .prompt textarea:focus-visible { outline: none; }
 .prompt .tools { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
@@ -254,12 +258,41 @@ main a { display: inline-flex; align-items: center; min-height: var(--tap); }
 .icon-btn svg { width: 22px; height: 22px; }
 .prompt .tools .left { display: flex; gap: var(--s2); }
 .examples { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s2); max-width: 46rem; margin: var(--s4) auto 0; position: relative; z-index: 3; }
-.example { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s2); padding: 0 var(--s4); border: 0; border-radius: 999px; background: rgba(23, 20, 58, 0.86); color: #fff; font: inherit; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
+.example { min-height: 44px; display: inline-flex; align-items: center; gap: var(--s2); padding: 0 var(--s4); border: 0; border-radius: 999px; background: rgba(23, 20, 58, 0.88); color: #fff; font: inherit; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
 .example:hover { background: var(--ink); }
 .example svg { width: 16px; height: 16px; }
 
-.skyline { position: relative; height: clamp(190px, 28vw, 340px); margin-top: calc(-1 * clamp(24px, 4vw, 56px)); }
-.skyline svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* moving sky */
+.clouds { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.cloud { position: absolute; left: 0; will-change: transform; animation: drift linear infinite; }
+.cloud svg, .flock svg { display: block; width: 100%; height: auto; }
+.cloud.a { top: 15%; width: clamp(170px, 22vw, 330px); animation-duration: 120s; animation-delay: -34s; --x0: 4vw; }
+.cloud.b { top: 31%; width: clamp(130px, 16vw, 240px); animation-duration: 160s; animation-delay: -110s; opacity: 0.8; --x0: 78vw; }
+.cloud.c { top: 6%; width: clamp(190px, 26vw, 380px); animation-duration: 140s; animation-delay: -70s; opacity: 0.9; --x0: 52vw; }
+.cloud.d { top: 46%; width: clamp(150px, 19vw, 280px); animation-duration: 180s; animation-delay: -140s; opacity: 0.7; --x0: 20vw; }
+@keyframes drift { from { transform: translateX(-40vw); } to { transform: translateX(110vw); } }
+.flock { position: absolute; left: 0; top: 24%; width: clamp(70px, 9vw, 130px); animation: fly 46s linear infinite; animation-delay: -12s; --x0: 66vw; }
+@keyframes fly { from { transform: translate(-14vw, 0); } 50% { transform: translate(50vw, -26px); } to { transform: translate(112vw, 8px); } }
+.bird { transform-box: fill-box; transform-origin: 50% 100%; animation: flap 0.55s ease-in-out infinite alternate; }
+@keyframes flap { from { transform: scaleY(1); } to { transform: scaleY(-0.55); } }
+
+/* the waterfront: the illustration is always shown whole (never cropped) and the far skyline repeats sideways to fill wide screens */
+.skyline { position: relative; z-index: 1; height: min(48vw, 480px); min-height: 190px; margin-top: var(--s4); overflow: hidden; }
+.sky-fill { position: absolute; inset: 0; background-repeat: repeat-x; background-position: center bottom; background-size: auto 62%; opacity: 0.95; }
+.sun { position: absolute; left: 50%; top: -4%; width: clamp(120px, 22vw, 280px); margin-left: calc(clamp(120px, 22vw, 280px) / -2); }
+.sun svg { display: block; width: 100%; height: auto; }
+.sun .rays { transform-box: fill-box; transform-origin: center; animation: spin 140s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.sky-cluster { position: absolute; left: 50%; bottom: 0; height: 100%; aspect-ratio: 2 / 1; max-width: 100%; transform: translateX(-50%); }
+.sky-cluster svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.rail { position: absolute; left: 0; right: 0; bottom: 0; height: 14%; overflow: hidden; z-index: 2; }
+.train { position: absolute; left: 0; bottom: 0; height: 100%; aspect-ratio: 700 / 84; will-change: transform; animation: drive 80s linear infinite; animation-delay: -18s; --x0: 18vw; }
+.train svg { display: block; width: 100%; height: 100%; }
+@keyframes drive { from { transform: translateX(-100%); } to { transform: translateX(100vw); } }
+@media (prefers-reduced-motion: reduce) {
+  .cloud, .flock, .train { animation: none; transform: translateX(var(--x0)); }
+  .sway, .bird, .sun .rays { animation: none; }
+}
 .trust { background: var(--indigo); color: #e7e3fb; }
 .trust ul { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s2) var(--s5); margin: 0 auto; padding: var(--s4) var(--s4); list-style: none; max-width: 72rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
 .trust li::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-right: var(--s2); }
