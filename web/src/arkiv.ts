@@ -8,6 +8,8 @@ import { and, asc, desc, eq, gt, gte, lte } from "@arkiv-network/sdk/query";
 import { addr, bytes, defineSchema, key as keyValue, str, u64 } from "@arkiv-network/sdk/schema";
 import { bytesToHex, hexToBytes, http, recoverTypedDataAddress, type Account, type Address, type Hex, type Transport } from "viem";
 import { ELIGIBILITY_TYPES, REVOCATION_TYPES } from "./eip712";
+import { HEARTBEAT_SECONDS, type Beat } from "./heartbeat";
+import { trace } from "./trace";
 
 // ---------- schemas ----------
 export const Credential = defineSchema("khata.credential", {
@@ -24,6 +26,12 @@ export const Revocation = defineSchema("khata.revocation", {
   attester: addr().indexed(),
   credId: str().indexed(),
   signature: bytes(),
+});
+
+/** Written by an attester while it is running; it expires on its own, so a silent attester stops appearing. */
+export const Heartbeat = defineSchema("khata.heartbeat", {
+  attester: addr().indexed(),
+  seq: u64().indexed(), // unix seconds when it was sent
 });
 
 export const Listing = defineSchema("khata.listing", {
@@ -130,6 +138,7 @@ export async function findCredentials(pub: ArkivPublic, opts: { subject?: Addres
     const preds = [gt("validUntil", u64(opts.notBefore))] as any[];
     if (opts.subject) preds.push(eq("subject", addr(opts.subject)));
     if (opts.attester) preds.push(eq("attester", addr(opts.attester)));
+    trace("khata.credential", `validUntil > now${opts.subject ? " AND subject = the wallet" : ""}${opts.attester ? " AND attester = the attester" : ""}`, "find credentials that have not expired; each one's signature is then checked here and against Whitechain");
     const q = (pub.select({ $key: true, $owner: true, subject: true, attester: true, tier: true, validUntil: true, credId: true, jurisdiction: true, signature: true })
       .from(Credential) as any).where(pred(preds)).orderBy(asc("validUntil")).limit(opts.limit ?? 50);
     const res = await q.fetch();
@@ -174,6 +183,7 @@ export async function publishRevocation(w: ArkivWallet, r: { attester: Address; 
 }
 export async function findRevocations(pub: ArkivPublic, opts: { attester: Address; credId?: Hex }): Promise<RevocationRecord[]> {
   return guard(async () => {
+    trace("khata.revocation", `attester = the attester${opts.credId ? " AND credId = the credential" : ""}`, "find revocations the attester published; Whitechain only enforces one once it is submitted there");
     const preds = [eq("attester", addr(opts.attester))] as any[];
     if (opts.credId) preds.push(eq("credId", opts.credId));
     const res = await (pub.select({ $key: true, $owner: true, attester: true, credId: true, signature: true })
@@ -213,6 +223,7 @@ const listingRow = (r: any): ListingRecord => ({
   status: text(r.status), title: text(r.title),
 });
 export async function findListings(pub: ArkivPublic, opts: { status?: string; dueAfter: number; seller?: Address; minDiscountBps?: number; dueBefore?: number; sort?: "due" | "discount"; limit?: number }): Promise<ListingRecord[]> {
+  trace("khata.listing", `dueDate > now${opts.seller ? " AND seller = the wallet" : ""}${opts.status ? " AND status = " + opts.status : ""}${opts.minDiscountBps ? " AND discountBps >= " + opts.minDiscountBps : ""}`, "the marketplace: open notes, filtered and ordered by the query itself; each listing is then checked against the factory");
   return guard(async () => {
     const preds = [gte("dueDate", u64(opts.dueAfter))] as any[];
     if (opts.status) preds.push(eq("status", opts.status));
@@ -249,6 +260,7 @@ export async function findAllCredentials(
   opts: { subject?: Address; attester?: Address; notBefore: number; pageSize?: number; onPage?: (rows: CredentialRecord[]) => void | Promise<void> },
 ): Promise<CredentialRecord[]> {
   return guard(async () => {
+    trace("khata.credential", `validUntil > now${opts.subject ? " AND subject = the wallet" : ""}`, "all unexpired credentials, paged by entity key because a page can hold rows that do not fit the schema");
     const pageSize = Math.min(opts.pageSize ?? 100, 100);
     const out: CredentialRecord[] = [];
     let cursor: Hex | undefined;
@@ -307,4 +319,19 @@ export function pickActivatable<C extends { rec: CredentialRecord; ok: boolean }
     .filter((c) => c.ok && !revoked.has(key(c.rec.attester, c.rec.credId)) && !opts.superseded?.has(key(c.rec.attester, c.rec.credId)))
     .filter((c) => !cur || c.rec.tier > cur.tier || (c.rec.tier === cur.tier && c.rec.validUntil > cur.validUntil))
     .sort((a, b) => b.rec.tier - a.rec.tier || b.rec.validUntil - a.rec.validUntil)[0];
+}
+
+
+// ---------- heartbeat ----------
+/** The attester proves it is running by writing an entity that Arkiv deletes after HEARTBEAT_SECONDS; it renews it before then. */
+export async function publishHeartbeat(w: ArkivWallet, attester: Address, nowSeconds: number, lifetimeSeconds = HEARTBEAT_SECONDS) {
+  return guard(() => w.createEntity(Heartbeat, { attester: addr(attester), seq: u64(nowSeconds) }, { expiration: ExpirationTime.fromSeconds(lifetimeSeconds) }));
+}
+export async function findHeartbeats(pub: ArkivPublic, attester: Address): Promise<Beat[]> {
+  return guard(async () => {
+    trace("khata.heartbeat", "attester = the attester", "is the attester still running? Arkiv deletes the entity when it expires, so no row means it went quiet");
+    const res = await (pub.select({ $key: true, $owner: true, attester: true, seq: true }).from(Heartbeat) as any)
+      .where(pred([eq("attester", addr(attester))])).orderBy(desc("seq")).limit(5).fetch();
+    return res.entities.map((r: any): Beat => ({ seq: num(r.seq), owner: r.$owner, attester: r.attester.value }));
+  });
 }

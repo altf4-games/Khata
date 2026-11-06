@@ -8,6 +8,8 @@ import { Traffic } from "./traffic";
 import { checkPin } from "./pin";
 import { readParams } from "./params";
 import { waitFor } from "./wait";
+import { routeSelfTestWithRetries } from "./selftest";
+import deployment from "../../deployments/whitechain-sepolia.json";
 
 /** The tor-js anon-client's on-chain specifier (Ethereum mainnet). Its bytes are checked against `workerHash()` before they run. */
 const DEFAULT_SPECIFIER = "0x700dA3193D35fA54Cd3fBf29B66f2a2A0385659e";
@@ -35,7 +37,7 @@ const specifier = params.get("anonSpecifier") ?? DEFAULT_SPECIFIER; // a test ho
 /** `?anonNetwork=nym` starts on Nym; `?anonFallback=off` (and any custom specifier) disables the switch, so a test sees the first failure. */
 const firstNetwork: "tor" | "nym" = params.get("anonNetwork") === "nym" ? "nym" : "tor";
 /** How long Tor may take to become ready before Nym is tried. A normal cold start is 8 to 17 s. */
-const bootDeadlineMs = Number(params.get("anonBootDeadline") ?? 40_000);
+const bootDeadlineMs = Number(params.get("anonBootDeadline") ?? 25_000);
 const fallbackAllowed = params.get("anonFallback") !== "off" && !params.get("anonSpecifier");
 
 export const traffic = new Traffic();
@@ -73,7 +75,12 @@ async function bootstrapRequest({ method, params }: { method: string; params?: u
   return body.result;
 }
 
-export function startAnon(network: "tor" | "nym" = firstNetwork, since = Date.now(), earlier?: string) {
+/** A Nym start whose test read goes unanswered (a bad exit node) is tried once more, which picks another exit. */
+let nymRestarts = 0;
+const NYM_RESTARTS = 1;
+
+export function startAnon(network: "tor" | "nym" = firstNetwork, since = Date.now(), earlier?: string, isRestart = false) {
+  if (!isRestart) nymRestarts = 0;
   worker?.close();
   worker = undefined;
   if (state.kind === "direct") return;
@@ -85,8 +92,15 @@ export function startAnon(network: "tor" | "nym" = firstNetwork, since = Date.no
   worker = w;
   // Tor can fail because its demo gateway is unreachable; Nym has no gateway, so it is the one other network to try, once.
   const fail = (why: string, plain = false) => {
+    console.debug("[anon-rpc] start failed:", why);
     clearTimeout(deadline);
     if (worker !== w) return;
+    if (network === "nym" && nymRestarts < NYM_RESTARTS && /test read|private route/i.test(why)) {
+      nymRestarts++;
+      w.close();
+      startAnon("nym", since, "The Nym exit did not answer. Trying another exit.", true);
+      return;
+    }
     if (network === "tor" && fallbackAllowed) {
       w.close();
       startAnon("nym", since, plain ? `${why}. Trying Nym instead.` : `Tor could not start (${why}). Trying Nym instead.`);
@@ -97,8 +111,19 @@ export function startAnon(network: "tor" | "nym" = firstNetwork, since = Date.no
   const deadline = network === "tor" && fallbackAllowed
     ? setTimeout(() => fail(`Tor did not finish starting in ${Math.round(bootDeadlineMs / 1000)} s`, true), bootDeadlineMs)
     : undefined;
+  // "ready" means a real test read came back through the route, not only that the worker finished starting: a route that boots
+  // but cannot answer (the occasional Nym "RPC did not answer") is caught here and treated like any other failed start
   w.ready.then(
-    () => { clearTimeout(deadline); if (worker === w) set({ kind: "ready", ms: Date.now() - since, network: name }); },
+    async () => {
+      if (worker !== w) return;
+      try {
+        await routeSelfTestWithRetries((u, i) => w.fetch(u, i as never) as never, "https://rpc.testnet.whitechain.io", Number(deployment.chainId));
+      } catch (e) {
+        return fail(String((e as Error)?.message ?? e).split("\n")[0]);
+      }
+      clearTimeout(deadline);
+      if (worker === w) set({ kind: "ready", ms: Date.now() - since, network: name });
+    },
     (e) => fail(String((e as Error)?.message ?? e).split("\n")[0]),
   );
   // the worker's own log lines tell the user what the warm-up is doing
@@ -163,22 +188,33 @@ const methodsOf = (init?: RequestInit): string[] => {
 export const routedFetch: typeof fetch = async (input, init) => {
   const methods = methodsOf(init);
   const calls = Math.max(methods.length, 1);
+  const t0 = Date.now();
+  const logged = async (route: "anon" | "direct" | "broadcast", f: () => Promise<Response>) => {
+    try {
+      const r = await f();
+      traffic.record({ route, methods, ms: Date.now() - t0, ok: r.ok });
+      return r;
+    } catch (e) {
+      traffic.record({ route, methods, ms: Date.now() - t0, ok: false });
+      throw e;
+    }
+  };
   if (methods.length === 1 && methods[0] === "eth_sendRawTransaction") {
     traffic.excluded("broadcast");
     touch();
-    return fetch(input, init);
+    return logged("broadcast", () => fetch(input, init));
   }
   if (methods.includes("eth_sendRawTransaction")) throw new Error("A broadcast must not share a request with reads.");
   if (state.kind === "direct") {
     traffic.read("direct", calls);
     touch();
-    return fetch(input, init);
+    return logged("direct", () => fetch(input, init));
   }
   if (state.kind === "failed") throw new Error("Anonymous reads are unavailable. Retry them or choose direct reads.");
   try {
     // during a retry the old worker is gone and the new one is not made yet: wait for it rather than fail
     const w = worker ?? (await waitFor(() => worker, () => (state.kind === "failed" ? "Anonymous reads are unavailable. Retry them or choose direct reads." : state.kind === "direct" ? "Reads switched to direct; try again." : undefined), 60_000));
-    const res = await w.fetch(input as string, init as never);
+    const res = await logged("anon", () => w.fetch(input as string, init as never) as Promise<Response>);
     traffic.read("anon", calls);
     touch();
     return res as Response;
@@ -209,4 +245,14 @@ export function chipText(): { text: string; title: string; tone: "ok" | "wait" |
     case "direct":
       return { text: "Reads: direct · not anonymous", title: `${detail} Your IP address is visible to the RPC providers.`, tone: "bad" };
   }
+}
+
+/**
+ * A fetch through the ready worker, for the Privacy page's diagnostic only. It is not a chain read, so it is not counted in the
+ * share or the log. Throws when the route is not ready.
+ */
+export async function viaRoute(url: string): Promise<string> {
+  if (state.kind !== "ready" || !worker) throw new Error("The private route is not ready.");
+  const res = (await worker.fetch(url, { method: "GET" } as never)) as Response;
+  return res.text();
 }

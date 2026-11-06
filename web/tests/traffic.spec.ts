@@ -25,3 +25,24 @@ test("a failed anonymous read is not counted as anonymous", () => {
   expect(t.snapshot()).toMatchObject({ anon: 1, failed: 1 });
   expect(t.share()).toBe(1); // failures were never sent directly
 });
+
+test("every read is logged with its route, method names, outcome and time, and the log can be audited", () => {
+  const t = new Traffic();
+  t.record({ route: "anon", methods: ["eth_call"], ms: 1800, ok: true });
+  t.record({ route: "anon", methods: ["eth_getLogs", "eth_blockNumber"], ms: 2400, ok: false });
+  t.record({ route: "broadcast", methods: ["eth_sendRawTransaction"], ms: 900, ok: true });
+  const log = t.log();
+  expect(log).toHaveLength(3);
+  expect(log[0]).toMatchObject({ route: "anon", methods: ["eth_call"], ok: true });
+  expect(log[1].ok).toBe(false);
+  expect(t.directReads(), "no read left the worker").toEqual([]);
+  t.record({ route: "direct", methods: ["eth_call"], ms: 300, ok: true });
+  expect(t.directReads()).toHaveLength(1);
+});
+
+test("the log keeps only the most recent entries", () => {
+  const t = new Traffic();
+  for (let i = 0; i < 250; i++) t.record({ route: "anon", methods: ["eth_call"], ms: i, ok: true });
+  expect(t.log()).toHaveLength(200);
+  expect(t.log()[199].ms).toBe(249);
+});

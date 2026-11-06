@@ -152,3 +152,21 @@ test("the choice to read directly is not made for the visitor: a fresh visit sta
   await page.waitForTimeout(2000);
   expect(direct).toEqual([]);
 });
+
+// The Privacy page shows evidence, not a promise: the self-test gates "ready", the audit holds, and the outside service sees
+// a different address through the route than straight from the browser.
+test("on Nym, the Privacy page audits that every read was private and shows the route hides the address", async ({ page }) => {
+  const direct = watchDirectRpc(page);
+  await page.goto("/?anonNetwork=nym&anonFallback=off#app");
+  await expect(page.getByTestId("reads-chip")).toHaveText(/Reads: Anon-RPC \(Nym\)/, { timeout: 120_000 });
+  await page.getByRole("tab", { name: /Investor/ }).click();
+  await expect(page.locator(".note").first()).toBeVisible({ timeout: 120_000 });
+  await page.getByTestId("reads-chip").click();
+  await expect(page.getByTestId("privacy-audit")).toBeVisible();
+  await expect(page.locator('tr[data-route="anon"]').first()).toBeVisible();
+  await expect(page.locator('tr[data-route="direct"]')).toHaveCount(0);
+  await page.getByTestId("privacy-compare").click();
+  await expect(page.getByTestId("privacy-verdict")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByTestId("privacy-verdict")).toContainText("not you");
+  expect(direct, `direct chain RPC requests from the page: ${JSON.stringify(direct)}`).toEqual([]);
+});

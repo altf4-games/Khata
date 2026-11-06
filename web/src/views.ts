@@ -7,15 +7,15 @@ import {
 } from "./chain";
 import { el, put, short, type Child } from "./ui";
 import { activeWallet, holdKey, refresh, refreshArkiv, rerender, run, store, type Msg } from "./store";
-import { explainTransfer, nowChain, parseUsdt, quote, span, usdt, when, type NoteInfo } from "./notes";
+import { explainTransfer, loadTimeline, nowChain, parseUsdt, quote, span, usdt, when, type NoteInfo } from "./notes";
 import { nameOf, walletsFor, type DemoWallet, type Role } from "./wallets";
 import { send } from "./tx";
 import { txLink } from "./outcome";
 import { wholeIn } from "./queue";
-import { closeListing, listingControl } from "./arkivViews";
+import { closeListing, heartbeatLine, listingControl } from "./arkivViews";
 import { arkivWalletFor } from "./arkivApp";
 import { ELIGIBILITY_TYPES, REVOCATION_TYPES, SELLER_BINDING_TYPES } from "./eip712";
-import { publishCredential, publishRevocation } from "./arkiv";
+import { publishCredential, publishHeartbeat, publishRevocation } from "./arkiv";
 
 // ---------- shared bits ----------
 export function msgBanner(key: string): Child {
@@ -112,6 +112,7 @@ export function noteCard(n: NoteInfo, role: Role): HTMLElement {
     ),
     el("p", { class: "mono foot" }, "Note contract ", el("a", { href: addressUrl(n.address), target: "_blank", rel: "noopener" }, n.address)),
   );
+  card.append(timelineBox(n));
   if (!w) return card;
 
   // actions that apply to this role and this note's state
@@ -405,5 +406,56 @@ export function attesterDesk(): HTMLElement[] {
     }, "Sign and register")),
     msgBanner(sellerKey),
   );
-  return [issue, list, bind];
+  const beatKey = "att:beat";
+  const beat = el("section", { class: "card", "aria-labelledby": "h-beat" }, el("span", { class: "kicker" }, "Arkiv expiry"), el("h2", { id: "h-beat" }, "Attester heartbeat"),
+    el("p", { class: "muted" }, "While the attester is running it publishes a small entity on Arkiv that lives for ten minutes. Investors see \"running\" while it exists. If the attester goes quiet, Arkiv deletes it and the page says so, with no cleanup job and no timestamp anyone has to trust."),
+    heartbeatLine(),
+    el("div", { class: "row" }, el("button", {
+      class: "btn dark grow", disabled: busy(beatKey), "data-testid": "send-heartbeat",
+      onclick: () => void run(beatKey, "Sending the heartbeat to Arkiv…", async () => {
+        const r = await publishHeartbeat(arkivWalletFor(w), w.address, await nowChain());
+        void refreshArkiv();
+        return { hash: r.txHash as `0x${string}`, gasUsed: 0n, chain: "arkiv" };
+      }, "Heartbeat sent", "It expires in ten minutes unless renewed."),
+    }, "Send a heartbeat")),
+    msgBanner(beatKey));
+  return [issue, list, bind, beat];
+}
+
+
+/** The invoice's history, read from the chain's own events only when the viewer opens it. The page re-renders as chain reads
+ *  arrive, so which histories are open, and what they loaded, is remembered per note. */
+const historyOpen = new Set<string>();
+const historySteps = new Map<string, Awaited<ReturnType<typeof loadTimeline>>>();
+function timelineBox(n: NoteInfo): HTMLElement {
+  const list = el("ol", { class: "timeline" });
+  const status = el("p", { class: "foot" }, "Loading history from the chain…");
+  const box = el("details", { class: "history", "data-testid": "timeline" }, el("summary", {}, "History of this invoice"), status, list) as HTMLDetailsElement;
+  const show = (steps: typeof historySteps extends Map<string, infer V> ? V : never) => {
+    status.textContent = steps.length ? "" : "No events found.";
+    for (const s of steps) {
+      list.append(el("li", {},
+        el("strong", {}, s.title), s.actor ? ` · ${s.actor}` : "",
+        el("p", { class: "foot" }, s.detail),
+        el("p", { class: "foot" }, s.at ? new Date(s.at * 1000).toLocaleString() : "", " ",
+          s.txHash ? el("a", { class: "mono", href: txUrl(s.txHash), target: "_blank", rel: "noopener" }, short(s.txHash, 8, 6)) : "")));
+    }
+  };
+  const key = n.address.toLowerCase();
+  const load = async () => {
+    const have = historySteps.get(key);
+    if (have) return show(have);
+    try {
+      const steps = await loadTimeline(n);
+      historySteps.set(key, steps);
+      show(steps);
+    } catch {
+      status.textContent = "Could not read the history right now. Close and open this again to retry.";
+    }
+  };
+  if (historyOpen.has(key)) { box.open = true; void load(); }
+  box.addEventListener("toggle", () => {
+    if (box.open) { if (!historyOpen.has(key)) { historyOpen.add(key); void load(); } } else historyOpen.delete(key);
+  });
+  return box;
 }

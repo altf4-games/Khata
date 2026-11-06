@@ -20,6 +20,7 @@ import { refreshArkiv } from "./store";
 import { refusalFor } from "./errors";
 import { buildCircuitInput } from "./zk-inputs";
 import { evidencePage } from "./evidence";
+import { privacyPage } from "./privacy";
 import { classify, formatRupees } from "./verdict";
 import { decodeImageFile, startCamera, type CameraScan } from "./scan";
 import { MAX_TOKEN_BYTES, normalizeToken } from "./token";
@@ -279,7 +280,7 @@ function topbar() {
 
 function readsChip() {
   const c = chipText();
-  const chip = el("span", { class: `chip reads ${c.tone}`, title: c.title, "data-testid": "reads-chip" }, el("span", { class: "dot" }), c.text);
+  const chip = el("a", { class: `chip reads ${c.tone}`, href: "#privacy", title: `${c.title} Open the Privacy page.`, "data-testid": "reads-chip" }, el("span", { class: "dot" }), c.text);
   return chip;
 }
 /** One tap between private reads and direct reads, so a visitor who only wants to get in is never stuck waiting for Tor. */
@@ -513,7 +514,7 @@ function footer() {
   return el("footer", { class: "footer" }, el("div", { class: "wrap" },
     el("p", { style: "margin:0" }, el("span", { class: "tag" }, "TESTNET DEMO"), " Built solo for ETHGlobal Mumbai 2026. Funds here have no value."),
     el("p", { style: "margin:0" }, "Registry contract: ", el("a", { class: "chip-link", href: addressUrl(registryAddress), target: "_blank", rel: "noopener" }, short(registryAddress, 8, 6))),
-    el("p", { style: "margin:0" }, el("a", { class: "chip-link", href: "#evidence" }, "Evidence: what the contract refused")),
+    el("p", { style: "margin:0" }, el("a", { class: "chip-link", href: "#evidence" }, "Evidence: what the contract refused"), " · ", el("a", { class: "chip-link", href: "#privacy" }, "Privacy: what the route is doing")),
     el("p", { style: "margin:0" }, "The NIC sample QR is real. Invoices marked DEMO IRP use a demo key, not a government key."),
   ));
 }
@@ -548,6 +549,7 @@ function openApp(role: Role = "supplier", token?: string) {
 function render() {
   const app = document.getElementById("app")!;
   if (location.hash === "#evidence") { app.replaceChildren(roughDefs(), evidencePage(), footer()); return; }
+  if (location.hash === "#privacy") { app.replaceChildren(roughDefs(), privacyPage(render), footer()); return; }
   if (!inApp()) {
     app.replaceChildren(roughDefs(), landing({
       getToken: () => state.token,
@@ -637,7 +639,12 @@ function spanText(s: number) {
 setRender(render);
 render();
 onState(render);
-onTraffic(refreshChip);
+onTraffic(() => {
+  refreshChip();
+  // the Privacy page lists requests as they happen; redraw it at most twice a second
+  if (location.hash === "#privacy" && !privacyTimer) privacyTimer = window.setTimeout(() => { privacyTimer = undefined; if (location.hash === "#privacy") render(); }, 500);
+});
+let privacyTimer: number | undefined;
 startAnon();
 
 // The front page reads nothing from the chain: reads, the Arkiv watcher and the poll start only when the app is opened.

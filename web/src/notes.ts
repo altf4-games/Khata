@@ -1,7 +1,9 @@
 // Reads notes and credentials from the chain. Everything shown comes from contract state, nothing is cached as truth.
 import type { Address } from "viem";
+import { buildTimeline, type RawEvent, type Step } from "./timeline";
+import { nameOf } from "./wallets";
 import {
-  attestersAbi, attestersAddress, factoryAbi, factoryAddress, factoryDeployTx, noteAbi, publicClient, usdtAbi, usdtAddress,
+  abi, attestersAbi, attestersAddress, registryAddress, factoryAbi, factoryAddress, factoryDeployTx, noteAbi, publicClient, usdtAbi, usdtAddress,
 } from "./chain";
 
 export const PHASES = ["Funding", "Settled", "Defaulted"] as const;
@@ -133,4 +135,24 @@ export function span(secs: number): string {
   if (s < 5400) return `${Math.round(s / 60)} min`;
   if (s < 172800) return `${(s / 3600).toFixed(1).replace(/\.0$/, "")} h`;
   return `${Math.round(s / 86400)} days`;
+}
+
+
+// ---------- one invoice's history ----------
+/** Reads the invoice's own events (registry bind, note creation, everything the note did) and turns them into plain steps. */
+export async function loadTimeline(n: NoteInfo): Promise<Step[]> {
+  const head = await publicClient.getBlockNumber();
+  const chunks = (from: bigint) => { const r: [bigint, bigint][] = []; for (let f = from; f <= head; f += CHUNK) r.push([f, f + CHUNK - 1n > head ? head : f + CHUNK - 1n]); return r; };
+  const created = (await eventsSince(factoryAddress, factoryAbi, "NoteCreated")).find((l: any) => String(l.args.note).toLowerCase() === n.address.toLowerCase());
+  const noteFrom: bigint = created?.blockNumber ?? (await startBlock());
+  const bound = await Promise.all(chunks(await startBlock()).map(([fromBlock, toBlock]) =>
+    publicClient.getContractEvents({ address: registryAddress, abi, eventName: "InvoiceBound", args: { nullifier: n.nullifier }, fromBlock, toBlock, strict: true } as any)));
+  const own = await Promise.all(chunks(noteFrom).map(([fromBlock, toBlock]) =>
+    publicClient.getContractEvents({ address: n.address, abi: noteAbi, fromBlock, toBlock, strict: true } as any)));
+  const raw = [...bound.flat(), ...(created ? [created] : []), ...own.flat()] as any[];
+  const blocks = [...new Set(raw.map((l) => l.blockNumber as bigint))];
+  const times = new Map<bigint, number>();
+  await Promise.all(blocks.map(async (b) => times.set(b, Number((await publicClient.getBlock({ blockNumber: b })).timestamp))));
+  const events: RawEvent[] = raw.map((l) => ({ name: l.eventName, args: l.args ?? {}, blockNumber: l.blockNumber, logIndex: l.logIndex, txHash: l.transactionHash, at: times.get(l.blockNumber) }));
+  return buildTimeline(events, (a) => nameOf(a), n.address);
 }

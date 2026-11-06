@@ -3,10 +3,11 @@
 import type { Address, Hex } from "viem";
 import { attesterDomain, attestersAbi, attestersAddress, factoryAbi, factoryAddress, noteAbi, publicClient } from "./chain";
 import {
-  arkivClients, findAllCredentials, findListings, findRevocations, watchArkiv, verifyCredential, verifyListing, verifyRevocation,
+  arkivClients, findAllCredentials, findHeartbeats, findListings, findRevocations, watchArkiv, verifyCredential, verifyListing, verifyRevocation,
   type CredentialRecord, type ListingRecord, type RevocationRecord,
 } from "./arkiv";
 import { wallets } from "./wallets";
+import { heartbeatStatus, type BeatStatus } from "./heartbeat";
 import { chainTransport } from "./anon";
 
 const env = import.meta.env as Record<string, string | undefined>;
@@ -24,6 +25,7 @@ export interface ArkivSnapshot {
   listings: CheckedListing[]; // the marketplace: filtered by the investor's choices
   ownListings: CheckedListing[]; // every listing by the demo sellers, unfiltered, so a seller always sees their own state
   superseded: Set<string>; // "attester:credId" (lower case) that Whitechain will refuse to register again
+  heartbeat: BeatStatus; // is the demo attester running? (its heartbeat entity has not expired)
 }
 
 const attesterCache = new Map<string, boolean>();
@@ -42,6 +44,7 @@ const noteSeller = async (n: Address) => (await publicClient.readContract({ addr
 export async function loadArkiv(now: number, filter: { minDiscountBps?: number; status?: string; dueWithinSeconds?: number; sort?: "due" | "discount" } = {}): Promise<ArkivSnapshot> {
   const attesterAddrs = wallets.filter((w) => w.role === "attester").map((w) => w.address);
   const sellerAddrs = wallets.filter((w) => w.role === "supplier").map((w) => w.address);
+  const beat = findHeartbeats(ark.pub, attesterAddrs[0]).then((found) => heartbeatStatus(found, attesterAddrs[0], (seq) => now - seq)).catch((): BeatStatus => ({ state: "none" }));
   const [creds, listings, revs, own] = await Promise.all([
     // only credentials for the labelled wallets this app can act as: anyone can write credential entities, and a flood
     // of them for strangers must not slow every read
@@ -68,7 +71,7 @@ export async function loadArkiv(now: number, filter: { minDiscountBps?: number; 
     const gone = (await publicClient.readContract({ address: attestersAddress, abi: attestersAbi, functionName: "superseded", args: [c.rec.attester, c.rec.credId] }).catch(() => false)) as boolean;
     if (gone) superseded.add(`${c.rec.attester.toLowerCase()}:${c.rec.credId.toLowerCase()}`);
   }));
-  return { credentials, revocations, listings: await check(listings), ownListings: await check(own), superseded };
+  return { credentials, revocations, listings: await check(listings), ownListings: await check(own), superseded, heartbeat: await beat };
 }
 
 /** Starts listening for Arkiv changes; `onChange` is called at most once per second, so a burst of events costs one refresh. */

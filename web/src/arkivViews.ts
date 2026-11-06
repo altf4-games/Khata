@@ -6,7 +6,8 @@ import { el, put, short } from "./ui";
 import { refreshArkiv, run, store } from "./store";
 import { busy, field, msgBanner, noteCard, nowEst, until } from "./views";
 import { arkivWalletFor } from "./arkivApp";
-import { extendListing, pickActivatable, publishListing, setListingStatus } from "./arkiv";
+import { arkivTrace } from "./trace";
+import { extendListing, pickActivatable, publishHeartbeat, publishListing, setListingStatus } from "./arkiv";
 import { usdt, when, type NoteInfo } from "./notes";
 import { nameOf, type DemoWallet, type Role } from "./wallets";
 import { send } from "./tx";
@@ -15,6 +16,25 @@ function arkivDown(): HTMLElement | null {
   return store.arkivError
     ? el("div", { class: "banner warn", role: "alert" }, el("span", { class: "ic" }, "!"), el("div", {}, el("strong", {}, "Arkiv is not answering"), el("p", {}, store.arkivError, " What Whitechain already knows is unaffected."), el("button", { class: "btn", onclick: () => void refreshArkiv() }, "Retry")))
     : null;
+}
+
+/** "How this screen uses Arkiv": the queries the app has made, in words. Closed by default so it does not crowd the page. */
+export function arkivExplain(): HTMLElement {
+  const rows = [...arkivTrace()].reverse().slice(0, 8);
+  return el("details", { class: "panel", "data-testid": "arkiv-explain" }, el("summary", {}, "How this screen uses Arkiv"),
+    el("p", { class: "foot" }, "Arkiv answers these questions with its own query language, filtering on indexed attributes. Nothing it returns is trusted on its own: signatures are checked here and Whitechain makes the final call."),
+    rows.length
+      ? el("ul", { class: "ev-list" }, ...rows.map((r) => el("li", {}, el("code", {}, r.entity), " where ", el("code", {}, r.where), el("br", {}), el("span", { class: "foot" }, r.why))))
+      : el("p", { class: "foot" }, "No query yet."));
+}
+
+/** Whether the attester is running, from its heartbeat entity (which Arkiv deletes when it expires). */
+export function heartbeatLine(): HTMLElement | null {
+  const h = store.arkiv?.heartbeat;
+  if (!h) return null;
+  return h.state === "live"
+    ? el("p", { class: "foot", "data-testid": "heartbeat" }, el("span", { class: "dot on" }), ` The attester is running: its heartbeat on Arkiv renews in ${Math.max(1, Math.round(h.renewsInSeconds / 60))} min or it disappears.`)
+    : el("p", { class: "foot", "data-testid": "heartbeat" }, "No attester heartbeat on Arkiv. Credentials already registered on Whitechain still work; do not expect new ones until it returns.");
 }
 
 // ---------- the wallet's credential, found on Arkiv and activated on Whitechain ----------
@@ -80,6 +100,7 @@ export function credentialPanel(w: DemoWallet): HTMLElement {
       ...bad.map((c) => el("p", { class: "foot" }, `${short(c.rec.credId, 10, 6)}: ${c.reason}`))));
   }
   put(panel, msgBanner(key));
+  panel.append(heartbeatLine() ?? "", arkivExplain());
   return panel;
 }
 
@@ -116,6 +137,7 @@ export function marketplace(role: Role): HTMLElement {
       n ? noteCard(n, role) : el("p", { class: "muted" }, "Open the note: ", el("a", { href: addressUrl(l.rec.note) }, short(l.rec.note)))));
   }
   wrap.append(cards);
+  wrap.append(arkivExplain());
   if (ignored.length) {
     wrap.append(el("details", { class: "panel" }, el("summary", {}, `${ignored.length} listing${ignored.length > 1 ? "s" : ""} ignored`),
       ...ignored.map((l) => el("p", { class: "foot" }, `${short(l.rec.entityKey, 10, 6)} by ${nameOf(l.rec.owner) ?? short(l.rec.owner)}: ${l.reason}`))));

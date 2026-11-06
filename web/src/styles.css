@@ -62,7 +62,7 @@ a { color: var(--red); text-underline-offset: 3px; }
 .brand { flex: none; white-space: nowrap; display: flex; align-items: center; gap: var(--s2); font-weight: 800; font-size: 1.3rem; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; min-height: var(--tap); }
 .brand svg { width: 30px; height: 30px; flex: none; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--s2); justify-content: flex-end; }
-.chip { display: inline-flex; align-items: center; gap: var(--s2); min-height: 30px; padding: 0 var(--s3); border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 0.78rem; font-weight: 500; color: var(--ink); }
+.chip { text-decoration: none; display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--tap, 44px); padding: 0 var(--s3); border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 0.78rem; font-weight: 500; color: var(--ink); }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
 .chip .dot.on { background: #2fa866; }
 @media (max-width: 599px) { .chip.hide-sm { display: none; } .bar .chips { gap: var(--s1); } .chip { padding: 0 var(--s2); font-size: 0.72rem; } }
@@ -370,3 +370,8 @@ main a { display: inline-flex; align-items: center; min-height: var(--tap); }
 /* switch between private and direct reads */
 .chip-btn { min-height: 44px; padding: 0 var(--s4); border: 1.5px solid var(--ink); border-radius: 999px; background: var(--card); color: var(--ink); font: inherit; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
 .chip-btn:hover { background: var(--paper); }
+
+.history { margin-top: var(--s-3, 12px); }
+.history summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 2px solid var(--line, #ddd); display: grid; gap: 12px; }
+.timeline li { overflow-wrap: anywhere; }

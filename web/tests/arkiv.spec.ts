@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 // @ts-expect-error plain ESM helper shared with the live scripts
 import { clients, deployment, loadEnv, wallet } from "../../scripts/lib/chain.mjs";
 import {
-  arkivClients, ArkivUnavailable, arkivError, Credential, extendListing, findAllCredentials, watchArkiv, findCredentials, findListings, findRevocations, publishCredential, publishListing,
+  arkivClients, ArkivUnavailable, arkivError, Credential, extendListing, findAllCredentials, watchArkiv, findCredentials, findListings, findHeartbeats, findRevocations, publishCredential, publishHeartbeat, publishListing,
   publishRevocation, setListingStatus, verifyCredential, verifyListing, verifyRevocation, type CredentialRecord,
 } from "../src/arkiv";
 import { ELIGIBILITY_TYPES, REVOCATION_TYPES } from "../src/eip712";
@@ -245,4 +245,21 @@ test("a listing can be extended by its owner only, and the new expiry is later",
   const extended = await extendListing(supplierArk, created.entityKey, 90 * 24 * 3600);
   expect(extended.expiresAt).toBeGreaterThan(created.expiresAt);
   await expect(extendListing(attesterArk, created.entityKey, 3600)).rejects.toThrow(/owned by|refused/);
+});
+
+// Arkiv's expiry is the product feature here: a heartbeat that is not renewed disappears from the query by itself.
+test("an attester heartbeat is found while it lives, is owned by the attester, and is gone after it expires", async () => {
+  const a = attester.account.address as Address;
+  const sentAt = nowSec();
+  const { entityKey } = await publishHeartbeat(attesterArk, a, sentAt, 20);
+  const beats = await waitFor(async () => {
+    const f = await findHeartbeats(ark.pub, a);
+    return f.some((b) => b.seq === sentAt) ? f : undefined;
+  });
+  const mine = beats.find((b) => b.seq === sentAt)!;
+  expect(mine.owner.toLowerCase()).toBe(a.toLowerCase());
+  expect(mine.attester.toLowerCase()).toBe(a.toLowerCase());
+  // after its lifetime, the same query no longer returns it: nothing was deleted by us
+  await waitFor(async () => ((await findHeartbeats(ark.pub, a)).some((b) => b.seq === sentAt) ? undefined : true), 120_000);
+  console.log(`expiry demo: heartbeat ${entityKey} (seq ${sentAt}) was returned by the query, then absent after its 20 s lifetime`);
 });
